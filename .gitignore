@@ -1,0 +1,31 @@
+# Cairo/Scarb
+target/
+*.sierra
+*.casm
+
+# Deployment artifacts
+deployment.json
+
+# Account/Keystore files (NEVER commit these!)
+*.json
+!Scarb.toml
+keystore/
+.starknet-accounts/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local

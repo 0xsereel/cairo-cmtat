@@ -1,0 +1,11 @@
+[package]
+name = "cairo_cmtat_erc20"
+version = "0.1.0"
+edition = "2023_11"
+
+[dependencies]
+openzeppelin = { git = "https://github.com/OpenZeppelin/cairo-contracts.git", tag = "v0.13.0" }
+
+[[target.starknet-contract]]
+sierra = true
+casm = true
