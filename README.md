@@ -308,13 +308,63 @@ let message = message_for_transfer_restriction(code);
 3. **Freeze Powers**: Use enforcement powers responsibly
 4. **Audit**: Consider professional security audit before mainnet deployment
 
+## CMTAT Engines
+
+This project includes Rule and Snapshot engines for extended functionality:
+
+### Rule Engine
+- **Purpose**: Control transfer restrictions (ERC-1404 compliant)
+- **Features**: Address whitelisting, max balance limits, custom restriction logic
+- **Use Cases**: KYC/AML compliance, accredited investor restrictions
+
+### Snapshot Engine  
+- **Purpose**: Record historical token balances
+- **Features**: Point-in-time balance queries, batch operations
+- **Use Cases**: Dividend distributions, voting rights, compliance reporting
+
+See [ENGINES.md](./ENGINES.md) for detailed deployment and usage instructions.
+
+### Quick Start with Engines
+
+```bash
+# 1. Deploy CMTAT Token
+./scripts/deploy_cmtat.sh --type standard --name "My Token" --symbol "MTK"
+
+# 2. Deploy Rule Engine for transfer restrictions
+./scripts/deploy_engines.sh --engine rule --token-address 0x... --owner 0x...
+
+# 3. Deploy Snapshot Engine for historical records
+./scripts/deploy_engines.sh --engine snapshot --token-address 0x... --owner 0x...
+```
+
+## Project Structure (Updated)
+
+```
+cairo-cmtat/
+├── src/
+│   ├── working_cmtat.cairo        # ✅ Full CMTAT implementation
+│   ├── contracts/                  # ✅ Specialized CMTAT variants
+│   │   ├── simple_standard_cmtat.cairo    # Standard with pause
+│   │   ├── simple_light_cmtat.cairo       # Lightweight version
+│   │   └── simple_debt_cmtat.cairo        # For debt instruments
+│   ├── engines/                    # ✅ NEW: Engine implementations
+│   │   ├── rule_engine.cairo      # Transfer restrictions
+│   │   └── snapshot_engine.cairo  # Historical balances
+│   └── interfaces/
+│       └── icmtat.cairo
+├── scripts/
+│   ├── deploy_cmtat.sh            # ✅ Deploy CMTAT tokens
+│   └── deploy_engines.sh          # ✅ NEW: Deploy engines
+├── ENGINES.md                      # ✅ NEW: Engine documentation
+└── README.md
+```
+
 ## Roadmap
 
-- [ ] Implement Pausable functionality
-- [ ] Add Snapshot support
+- [x] ~~Implement Pausable functionality~~ (Included in StandardCMTAT)
+- [x] ~~Add Snapshot support~~ (Snapshot Engine implemented)
+- [x] ~~Rule Engine for transfer restrictions~~ (Rule Engine implemented)
 - [ ] Implement Document Engine integration
-- [ ] Add Debt token variant
-- [ ] Add Allowlist token variant
 - [ ] Comprehensive test suite
 - [ ] Gas optimization
 - [ ] Security audit

@@ -7,3 +7,9 @@
 [submodule "private-CMTAT-aztec"]
 	path = private-CMTAT-aztec
 	url = git@github.com:CMTA/private-CMTAT-aztec.git
+[submodule "SnapshotEngine"]
+	path = SnapshotEngine
+	url = git@github.com:CMTA/SnapshotEngine.git
+[submodule "RuleEngine"]
+	path = RuleEngine
+	url = git@github.com:CMTA/RuleEngine.git
