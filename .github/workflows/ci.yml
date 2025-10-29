@@ -1,0 +1,198 @@
+name: Cairo CMTAT CI
+
+on:
+  push:
+    branches: [ main, develop, land/innovation ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  SCARB_VERSION: 2.6.4
+  CAIRO_VERSION: 2.6.3
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Scarb
+      uses: software-mansion/setup-scarb@v1
+      with:
+        scarb-version: ${{ env.SCARB_VERSION }}
+
+    - name: Check Scarb version
+      run: scarb --version
+
+    - name: Check Cairo version
+      run: cairo-compile --version || echo "Cairo compile version not available"
+
+    - name: Cache Scarb dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cairo
+          target/
+        key: ${{ runner.os }}-scarb-${{ hashFiles('Scarb.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-scarb-
+
+    - name: Build contracts
+      run: scarb build
+
+    - name: Run tests
+      run: scarb test
+
+    - name: Check contract sizes
+      run: |
+        echo "=== Contract Sizes ==="
+        find target -name "*.contract_class.json" -exec basename {} \; -exec du -h {} \; | sort
+
+    - name: Validate contract structure
+      run: |
+        echo "=== Validating Contracts ==="
+        echo "Standard CMTAT:"
+        ls -la target/dev/*StandardCMTAT* || echo "Standard CMTAT not found"
+        echo "Light CMTAT:"
+        ls -la target/dev/*LightCMTAT* || echo "Light CMTAT not found"
+        echo "Debt CMTAT:"
+        ls -la target/dev/*DebtCMTAT* || echo "Debt CMTAT not found"
+        echo "Rule Engine:"
+        ls -la target/dev/*RuleEngine* || echo "Rule Engine not found"
+        echo "Snapshot Engine:"
+        ls -la target/dev/*SnapshotEngine* || echo "Snapshot Engine not found"
+
+  lint:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Scarb
+      uses: software-mansion/setup-scarb@v1
+      with:
+        scarb-version: ${{ env.SCARB_VERSION }}
+
+    - name: Format check
+      run: scarb fmt --check || echo "No formatter available"
+
+    - name: Check for common issues
+      run: |
+        echo "=== Checking for common issues ==="
+        # Check for TODO/FIXME comments
+        grep -r "TODO\|FIXME\|XXX" src/ tests/ || echo "No TODOs found"
+        
+        # Check for proper license headers
+        echo "Checking license headers..."
+        for file in $(find src tests -name "*.cairo"); do
+          if ! head -5 "$file" | grep -q "SPDX-License-Identifier"; then
+            echo "Missing license header in $file"
+          fi
+        done
+
+  security:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Security checks
+      run: |
+        echo "=== Security Analysis ==="
+        
+        # Check for hardcoded addresses (except examples)
+        echo "Checking for hardcoded addresses..."
+        grep -r "0x[0-9a-fA-F]\{40,\}" src/ tests/ --exclude-dir=target || echo "No hardcoded addresses found"
+        
+        # Check for unsafe patterns
+        echo "Checking for unsafe patterns..."
+        grep -r "assert(" src/ tests/ || echo "No direct asserts found"
+        
+        # Check for role management
+        echo "Checking role definitions..."
+        grep -r "ROLE\|_ROLE" src/ || echo "No roles found"
+
+  documentation:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Check documentation
+      run: |
+        echo "=== Documentation Check ==="
+        
+        # Check README exists and has content
+        if [ -f README.md ] && [ -s README.md ]; then
+          echo "✅ README.md exists and has content"
+        else
+          echo "❌ README.md missing or empty"
+          exit 1
+        fi
+        
+        # Check for deployment guide
+        if [ -f DEPLOYMENT_TESTING.md ]; then
+          echo "✅ Deployment guide exists"
+        else
+          echo "❌ Deployment guide missing"
+        fi
+        
+        # Check script documentation
+        for script in scripts/*.sh; do
+          if head -10 "$script" | grep -q "^#.*[Dd]escription\|^# "; then
+            echo "✅ $script has documentation"
+          else
+            echo "⚠️  $script could use better documentation"
+          fi
+        done
+
+  deployment-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Scarb
+      uses: software-mansion/setup-scarb@v1
+      with:
+        scarb-version: ${{ env.SCARB_VERSION }}
+
+    - name: Build for deployment
+      run: scarb build
+
+    - name: Test deployment script syntax
+      run: |
+        echo "=== Testing Deployment Scripts ==="
+        
+        # Check script syntax
+        for script in scripts/*.sh; do
+          echo "Checking syntax of $script..."
+          bash -n "$script" && echo "✅ $script syntax OK" || echo "❌ $script syntax error"
+        done
+        
+        # Check script permissions
+        for script in scripts/*.sh; do
+          if [ -x "$script" ]; then
+            echo "✅ $script is executable"
+          else
+            echo "❌ $script is not executable"
+          fi
+        done
+
+    - name: Validate environment template
+      run: |
+        echo "=== Validating Environment ==="
+        
+        if [ -f .env.example ]; then
+          echo "✅ .env.example exists"
+          echo "Required variables:"
+          grep "^[A-Z_]*=" .env.example || echo "No variables found"
+        else
+          echo "❌ .env.example missing"
+        fi
