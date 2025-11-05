@@ -16,3 +16,5 @@ fn test_basic_functionality() {
     let admin_addr = admin();
     assert(admin_addr != user1(), 'Admin should not equal user1');
 }
+
+// TODO: Add more tests for CMTAT itself

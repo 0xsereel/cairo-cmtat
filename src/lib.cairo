@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MPL-2.0
-// Cairo CMTAT Implementation Library
 
 // CMTAT interfaces
 pub mod interfaces {
