@@ -17,8 +17,4 @@ fn test_basic_functionality() {
     assert(admin_addr != user1(), 'Admin should not equal user1');
 }
 
-#[test] 
-fn test_simple_math() {
-    let result = 2 + 2;
-    assert(result == 4, 'Two plus two should equal four');
-}
+// TODO: Add more tests for CMTAT itself

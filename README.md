@@ -1,15 +1,15 @@
 # Cairo CMTAT - Regulated Securities on Starknet
 
-A comprehensive implementation of CMTAT (Capital Markets and Technology Association Token) standard in Cairo for Starknet, featuring compliance engines for regulated securities.
+A comprehensive implementation of CMTAT (Capital Markets and Technology Association Token) standard in Cairo for Starknet, featuring compliance and snapshot engines for regulated securities.
 
 ## Features
 
-- ✅ **ERC20 Compliance** with regulatory extensions
-- ✅ **Role-Based Access Control** (Admin, Minter, Burner, Debt roles)
-- ✅ **Rule Engine** for transfer restrictions and whitelisting
-- ✅ **Snapshot Engine** for historical balance tracking
-- ✅ **Three Contract Variants**: Standard, Light, and Debt CMTAT
-- ✅ **OpenZeppelin Components** for security and reliability
+-  **ERC20 Compliance** with regulatory extensions
+-  **Role-Based Access Control** (Admin, Minter, Burner, Debt roles)
+-  **Rule Engine** for transfer restrictions and whitelisting
+-  **Snapshot Engine** for historical balance tracking
+-  **Three Contract Variants**: Standard, Light, and Debt CMTAT
+-  **OpenZeppelin Components** for security and reliability
 
 ## Quick Start
 
@@ -89,7 +89,7 @@ All contracts are deployed and ready for interaction:
 Full-featured implementation with complete ERC20 functionality, compliance features, and engine integration.
 
 ### Light CMTAT  
-Lightweight version with essential ERC20 and basic compliance features for minimal deployments.
+Lightweight version with essential ERC20 and basic compliance features for minimal deployments. Useful for stablecoins.
 
 ### Debt CMTAT
 Specialized for debt securities with ISIN tracking, maturity dates, and interest rate management.
