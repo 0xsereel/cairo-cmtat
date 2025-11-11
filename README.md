@@ -217,12 +217,4 @@ Mozilla Public License 2.0 (MPL-2.0)
 
 ---
 
-**Built for regulated securities on Starknet** 🛡️
-
-## License
-
-Mozilla Public License 2.0 (MPL-2.0)
-
----
-
-**Built for regulated securities on Starknet** 🛡️
+**Built for regulated securities on Starknet**
