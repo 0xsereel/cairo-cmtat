@@ -111,7 +111,7 @@ Optional CMTAT features
 | **CMTAT Functionalities** | **Cairo/Starknet Implementation** | **Status** | **CMTAT Solidity corresponding features** |
 | :------------------------- | :-------------------------------- | :--------- | :----------------------------------------- |
 | On-chain snapshot          | Custom Snapshot Engine contract   | ✅         | `snapshotEngine`                           |
-| Force Transfer             | ❌ Not implemented                 | ❌         | `forcedTransfer`                           |
+| Force Transfer             | Custom `forced_transfer` function | ✅         | `forcedTransfer`                           |
 | Freeze partial token       | Custom `freeze_tokens` function    | ✅         | Partial token freezing                     |
 | Rule Engine / transfer hook| Custom Rule Engine contract       | ✅         | CMTAT with RuleEngine                      |
 | Whitelisting               | Rule Engine implementation        | ✅         | CMTAT Allowlist / CMTAT with rule whitelist|
@@ -129,10 +129,10 @@ Optional CMTAT features
 Full-featured implementation with complete ERC20 functionality, compliance features, and engine integration.
 
 ### Light CMTAT  
-Core CMTAT framework implementation with all essential compliance features. Excludes optional features like rule engines, MetaTx, and forced transfers for simpler deployments.
+Core CMTAT framework implementation with all essential compliance features including force transfer for regulatory compliance.
 
 ### Debt CMTAT
-Specialized for debt securities with ISIN tracking, maturity dates, and interest rate management.
+Specialized for debt securities with ISIN tracking, maturity dates, interest rate management, and force transfer capabilities.
 
 ### Compliance Engines
 - **Rule Engine**: Controls transfer restrictions and address whitelisting
@@ -158,9 +158,9 @@ Specialized for debt securities with ISIN tracking, maturity dates, and interest
 
 **Light CMTAT:**
 - Core CMTAT framework compliance (pause, freeze, deactivate, burn)
-- All essential compliance features included
-- Excludes optional features: rule engine, MetaTx, forced transfers
-- Ideal for standard CMTAT deployments without advanced features
+- All essential compliance features including force transfer
+- Excludes optional features: rule engine, MetaTx  
+- Ideal for standard CMTAT deployments without advanced rule systems
 
 **Standard CMTAT:**
 - Pause and freeze address enforcement
@@ -186,10 +186,6 @@ src/
 └── interfaces/
     └── icmtat.cairo            # Interface definitions
 ```
-
-## Documentation
-
-Comprehensive inline documentation is provided in each contract file explaining the behavior and restrictions for mint/burn functions, including compliance checks for pause, freeze, and rule engine restrictions.
 
 ## Usage Example
 

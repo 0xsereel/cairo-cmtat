@@ -50,6 +50,7 @@ mod StandardCMTAT {
         frozen_addresses: LegacyMap<ContractAddress, bool>,
         frozen_tokens: LegacyMap<ContractAddress, u256>,
         paused: bool,
+        deactivated: bool,
     }
 
     #[event]
@@ -65,6 +66,7 @@ mod StandardCMTAT {
         InformationSet: InformationSet,
         Paused: Paused,
         Unpaused: Unpaused,
+        Deactivated: Deactivated,
         AddressFrozen: AddressFrozen,
         AddressUnfrozen: AddressUnfrozen,
         TokensFrozen: TokensFrozen,
@@ -89,6 +91,11 @@ mod StandardCMTAT {
 
     #[derive(Drop, starknet::Event)]
     struct Unpaused {
+        pub account: ContractAddress,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct Deactivated {
         pub account: ContractAddress,
     }
 
@@ -141,6 +148,7 @@ mod StandardCMTAT {
         self.terms.write(terms);
         self.information.write(information);
         self.paused.write(false);
+        self.deactivated.write(false);
 
         if initial_supply > 0 {
             self.erc20._mint(recipient, initial_supply);
@@ -182,8 +190,21 @@ mod StandardCMTAT {
 
         fn unpause(ref self: ContractState) {
             self.access_control.assert_only_role(DEFAULT_ADMIN_ROLE);
+            assert(!self.is_deactivated(), 'Cannot unpause when deactivated');
             self.paused.write(false);
             self.emit(Unpaused { account: get_caller_address() });
+        }
+
+        // Deactivation functionality
+        fn is_deactivated(self: @ContractState) -> bool {
+            self.deactivated.read()
+        }
+
+        fn deactivate_contract(ref self: ContractState) {
+            self.access_control.assert_only_role(DEFAULT_ADMIN_ROLE);
+            assert(self.is_paused(), 'Contract must be paused first');
+            self.deactivated.write(true);
+            self.emit(Deactivated { account: get_caller_address() });
         }
 
         /// Mint tokens to a specified address
@@ -283,6 +304,63 @@ mod StandardCMTAT {
         fn token_type(self: @ContractState) -> ByteArray {
             "Standard CMTAT"
         }
+
+        /// Force transfer tokens from one address to another
+        /// 
+        /// # Administrative Override Function:
+        /// - Requires DEFAULT_ADMIN_ROLE permission  
+        /// - Can transfer from frozen addresses (bypasses freeze restrictions)
+        /// - Automatically unfreezes partial tokens if needed
+        /// - Contract must not be deactivated
+        /// 
+        /// # Arguments:
+        /// - `from`: Source address to transfer tokens from
+        /// - `to`: Target address to receive tokens
+        /// - `amount`: Amount of tokens to transfer
+        /// 
+        /// # Returns:
+        /// - `bool`: Always true if successful, reverts on failure
+        /// 
+        /// # Use Cases:
+        /// - Regulatory compliance and court orders
+        /// - Emergency corrections and error recovery
+        /// - Moving tokens from frozen addresses
+        fn forced_transfer(ref self: ContractState, from: ContractAddress, to: ContractAddress, amount: u256) -> bool {
+            self.access_control.assert_only_role(DEFAULT_ADMIN_ROLE);
+            assert(!self.is_deactivated(), 'Contract is deactivated');
+            
+            // Ensure sufficient balance exists (including frozen tokens)
+            let total_balance = self.erc20.balance_of(from);
+            assert(total_balance >= amount, 'Insufficient total balance');
+            
+            // If partial tokens are frozen, unfreeze them as needed
+            let frozen_amount = self.frozen_tokens.read(from);
+            if frozen_amount > 0 {
+                let active_balance = if total_balance >= frozen_amount {
+                    total_balance - frozen_amount
+                } else {
+                    0
+                };
+                
+                // If we need to use frozen tokens, unfreeze the required amount
+                if amount > active_balance && frozen_amount > 0 {
+                    let unfreeze_amount = amount - active_balance;
+                    let amount_to_unfreeze = if unfreeze_amount > frozen_amount {
+                        frozen_amount
+                    } else {
+                        unfreeze_amount
+                    };
+                    
+                    self.frozen_tokens.write(from, frozen_amount - amount_to_unfreeze);
+                    self.emit(TokensUnfrozen { account: from, amount: amount_to_unfreeze });
+                }
+            }
+            
+            // Perform the forced transfer using internal ERC20 functions
+            self.erc20._transfer(from, to, amount);
+            
+            true
+        }
     }
 }
 
@@ -295,6 +373,8 @@ trait IStandardCMTAT<TContractState> {
     fn is_paused(self: @TContractState) -> bool;
     fn pause(ref self: TContractState);
     fn unpause(ref self: TContractState);
+    fn is_deactivated(self: @TContractState) -> bool;
+    fn deactivate_contract(ref self: TContractState);
     fn mint(ref self: TContractState, to: ContractAddress, amount: u256);
     fn burn(ref self: TContractState, from: ContractAddress, amount: u256);
     fn freeze_address(ref self: TContractState, account: ContractAddress);
@@ -304,5 +384,6 @@ trait IStandardCMTAT<TContractState> {
     fn unfreeze_tokens(ref self: TContractState, account: ContractAddress, amount: u256);
     fn get_frozen_tokens(self: @TContractState, account: ContractAddress) -> u256;
     fn active_balance_of(self: @TContractState, account: ContractAddress) -> u256;
+    fn forced_transfer(ref self: TContractState, from: ContractAddress, to: ContractAddress, amount: u256) -> bool;
     fn token_type(self: @TContractState) -> ByteArray;
 }

@@ -59,6 +59,7 @@ mod LightCMTAT {
         AddressUnfrozen: AddressUnfrozen,
         TokensFrozen: TokensFrozen,
         TokensUnfrozen: TokensUnfrozen,
+        ForcedTransfer: ForcedTransfer,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -106,6 +107,16 @@ mod LightCMTAT {
         #[key]
         pub account: ContractAddress,
         pub amount: u256,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct ForcedTransfer {
+        #[key]
+        pub from: ContractAddress,
+        #[key]
+        pub to: ContractAddress,
+        pub amount: u256,
+        pub enforcer: ContractAddress,
     }
 
     #[constructor]
@@ -200,7 +211,6 @@ mod LightCMTAT {
 
         fn unpause(ref self: ContractState) {
             self.access_control.assert_only_role(DEFAULT_ADMIN_ROLE);
-            assert(!self.is_deactivated(), 'Contract is deactivated');
             self.paused.write(false);
             self.emit(Unpaused { account: get_caller_address() });
         }
@@ -212,7 +222,6 @@ mod LightCMTAT {
 
         fn deactivate_contract(ref self: ContractState) {
             self.access_control.assert_only_role(DEFAULT_ADMIN_ROLE);
-            assert(self.is_paused(), 'Contract must be paused first');
             self.deactivated.write(true);
             self.emit(Deactivated { account: get_caller_address() });
         }
@@ -266,6 +275,56 @@ mod LightCMTAT {
 
         fn token_type(self: @ContractState) -> ByteArray {
             "Light CMTAT"
+        }
+
+        /// Force transfer tokens between addresses bypassing normal restrictions
+        /// 
+        /// This is an emergency administrative function that bypasses normal transfer
+        /// restrictions including address freezes and token freezes. It should only
+        /// be used for regulatory compliance, court orders, or emergency situations.
+        /// 
+        /// # Core CMTAT Requirements:
+        /// - Requires DEFAULT_ADMIN_ROLE permission (highest authority)
+        /// - Contract must not be deactivated
+        /// - Automatically unfreezes necessary tokens for the transfer
+        /// 
+        /// # Arguments:
+        /// - `from`: Source address to transfer tokens from
+        /// - `to`: Target address to transfer tokens to
+        /// - `amount`: Amount of tokens to force transfer
+        /// 
+        /// # Returns:
+        /// - `bool`: true if transfer was successful
+        fn forced_transfer(ref self: ContractState, from: ContractAddress, to: ContractAddress, amount: u256) -> bool {
+            // Only admin can perform forced transfers
+            self.access_control.assert_only_role(DEFAULT_ADMIN_ROLE);
+            
+            // Cannot perform operations on deactivated contracts
+            assert(!self.is_deactivated(), 'Contract is deactivated');
+            
+            // Validate sufficient total balance
+            let total_balance = self.erc20.balance_of(from);
+            assert(total_balance >= amount, 'Insufficient total balance');
+            
+            // If tokens are frozen, automatically unfreeze the required amount
+            let frozen_amount = self.frozen_tokens.read(from);
+            if frozen_amount > 0 {
+                let active_balance = total_balance - frozen_amount;
+                if active_balance < amount {
+                    let unfreeze_needed = amount - active_balance;
+                    let to_unfreeze = if unfreeze_needed > frozen_amount { frozen_amount } else { unfreeze_needed };
+                    self.frozen_tokens.write(from, frozen_amount - to_unfreeze);
+                    self.emit(TokensUnfrozen { account: from, amount: to_unfreeze });
+                }
+            }
+            
+            // Perform the transfer using internal ERC20 function (bypasses hooks)
+            self.erc20._transfer(from, to, amount);
+            
+            // Emit forced transfer event for compliance tracking
+            self.emit(ForcedTransfer { from, to, amount, enforcer: get_caller_address() });
+            
+            true
         }
     }
 
@@ -331,4 +390,6 @@ trait ILightCMTAT<TContractState> {
     fn unfreeze_tokens(ref self: TContractState, account: ContractAddress, amount: u256);
     fn active_balance_of(self: @TContractState, account: ContractAddress) -> u256;
     fn token_type(self: @TContractState) -> ByteArray;
+    // Force transfer
+    fn forced_transfer(ref self: TContractState, from: ContractAddress, to: ContractAddress, amount: u256) -> bool;
 }

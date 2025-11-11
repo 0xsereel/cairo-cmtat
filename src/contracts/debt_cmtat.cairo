@@ -348,7 +348,6 @@ mod DebtCMTAT {
 
         fn unpause(ref self: ContractState) {
             self.access_control.assert_only_role(DEFAULT_ADMIN_ROLE);
-            assert(!self.is_deactivated(), 'Contract is deactivated');
             self.paused.write(false);
             self.emit(Unpaused { account: get_caller_address() });
         }
@@ -360,7 +359,6 @@ mod DebtCMTAT {
 
         fn deactivate_contract(ref self: ContractState) {
             self.access_control.assert_only_role(DEFAULT_ADMIN_ROLE);
-            assert(self.is_paused(), 'Contract must be paused first');
             self.deactivated.write(true);
             self.emit(Deactivated { account: get_caller_address() });
         }
@@ -550,6 +548,60 @@ mod DebtCMTAT {
             snapshot_engine.schedule_snapshot(timestamp)
         }
 
+        /// Force transfer tokens from one address to another
+        /// 
+        /// # Administrative Override Function:
+        /// - Requires DEFAULT_ADMIN_ROLE permission
+        /// - Can transfer from frozen addresses (bypasses freeze restrictions)
+        /// - Automatically unfreezes partial tokens if needed
+        /// - Contract must not be deactivated
+        /// - Bypasses rule engine restrictions
+        /// 
+        /// # Arguments:
+        /// - `from`: Source address to transfer tokens from
+        /// - `to`: Target address to receive tokens
+        /// - `amount`: Amount of tokens to transfer
+        /// 
+        /// # Returns:
+        /// - `bool`: Always true if successful, reverts on failure
+        fn forced_transfer(ref self: ContractState, from: ContractAddress, to: ContractAddress, amount: u256) -> bool {
+            self.access_control.assert_only_role(DEFAULT_ADMIN_ROLE);
+            assert(!self.is_deactivated(), 'Contract is deactivated');
+            
+            // Ensure sufficient balance exists (including frozen tokens)
+            let total_balance = self.erc20.balance_of(from);
+            assert(total_balance >= amount, 'Insufficient total balance');
+            
+            // If partial tokens are frozen, unfreeze them as needed
+            let frozen_amount = self.frozen_tokens.read(from);
+            if frozen_amount > 0 {
+                let active_balance = if total_balance >= frozen_amount {
+                    total_balance - frozen_amount
+                } else {
+                    0
+                };
+                
+                // If we need to use frozen tokens, unfreeze the required amount
+                if amount > active_balance && frozen_amount > 0 {
+                    let unfreeze_amount = amount - active_balance;
+                    let amount_to_unfreeze = if unfreeze_amount > frozen_amount {
+                        frozen_amount
+                    } else {
+                        unfreeze_amount
+                    };
+                    
+                    self.frozen_tokens.write(from, frozen_amount - amount_to_unfreeze);
+                    self.emit(TokensUnfrozen { account: from, amount: amount_to_unfreeze });
+                }
+            }
+            
+            // Perform the forced transfer using internal ERC20 functions
+            // This bypasses all hooks and restrictions
+            self.erc20._transfer(from, to, amount);
+            
+            true
+        }
+
         fn record_snapshot(ref self: ContractState, snapshot_id: u64) {
             self.access_control.assert_only_role(DEBT_ROLE);
             let snapshot_engine_addr = self.snapshot_engine.read();
@@ -644,6 +696,8 @@ trait IDebtCMTAT<TContractState> {
     fn set_rule_engine(ref self: TContractState, new_engine: ContractAddress);
     fn get_snapshot_engine(self: @TContractState) -> ContractAddress;
     fn set_snapshot_engine(ref self: TContractState, new_engine: ContractAddress);
+    // Force transfer
+    fn forced_transfer(ref self: TContractState, from: ContractAddress, to: ContractAddress, amount: u256) -> bool;
     // Transfer restrictions (ERC-1404)
     fn detect_transfer_restriction(self: @TContractState, from: ContractAddress, to: ContractAddress, amount: u256) -> u8;
     fn message_for_restriction_code(self: @TContractState, restriction_code: u8) -> ByteArray;
