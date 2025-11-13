@@ -30,6 +30,11 @@ Thumbs.db
 .env
 .env.local
 
+# Local deployment accounts (ephemeral)
+local_accounts.json
+local_keystore.json
+local_account.json
+
 notes.txt
 
 AGENTS.md

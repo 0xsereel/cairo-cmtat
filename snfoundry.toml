@@ -1,10 +1,19 @@
 [sncast.default]
 account = "deployer_foundry"
 accounts-file = "/Users/lancedavis/.starknet_accounts/starknet_open_zeppelin_accounts.json"
-keystore = "/Users/lancedavis/.starknet_accounts/starknet_open_zeppelin_keystore.json"
+
+# Original account config (backup)
+[sncast.original]
+account = "account"
+accounts-file = "/Users/lancedavis/.starknet-accounts/account.json"
+keystore = "/Users/lancedavis/.starknet-wallets/keystore.json"
 
 # Alternative using local network for testing
 [sncast.local]
 account = "deployer_foundry"
 accounts-file = "/Users/lancedavis/.starknet_accounts/starknet_open_zeppelin_accounts.json"
 url = "http://127.0.0.1:5050"
+[sncast.factory_deployer]
+account = "deployer_foundry"
+accounts-file = "/Users/lancedavis/.starknet_accounts/starknet_open_zeppelin_accounts.json"
+url = "https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_9/lyWjJAFsJ3u1e1h91qZyz683KLct-Rr6"

@@ -362,6 +362,27 @@ The factory contract is upgradeable using the OpenZeppelin Upgradeable component
 
 **Note:** Upgrading the factory does NOT affect already deployed tokens. Each token is an independent contract instance.
 
+## Deployment Log
+
+### Sepolia Testnet - November 13, 2025
+
+**Declared Class Hashes:**
+
+| Contract Type | Class Hash | Transaction Hash | Explorer Link |
+|--------------|------------|------------------|---------------|
+| CMTATFactory | `0x642690cd7238eeee0bb2b7d7018f93b8b70ce746d5dd27e1eb686f4978b18eb` | `0x6bda05c4183358ca3e2fcb4d0c6af43a3654a7dbd8e81e17a88b6a0f5bb2d82` | [View](https://sepolia.starkscan.co/class/0x0642690cd7238eeee0bb2b7d7018f93b8b70ce746d5dd27e1eb686f4978b18eb) |
+| StandardCMTAT | `0x63915780ef156861eb27e71cf701a9c48859ec78793727a673ba8c690db62bc` | `0x62bbebd4360afac3192b1d6bf6b2a7d6ca0174532e8de761b57070d6e701da0` | [View](https://sepolia.starkscan.co/class/0x063915780ef156861eb27e71cf701a9c48859ec78793727a673ba8c690db62bc) |
+| DebtCMTAT | `0x38b7e98d854643d175bf4ccb3758542a1fcea75721705969bdfc1b69ba6e07e` | `0x36802b0b2333e5825160df8fe3f917fc0a82e7f9f03fbf2ac187bb2499370b7` | [View](https://sepolia.starkscan.co/class/0x038b7e98d854643d175bf4ccb3758542a1fcea75721705969bdfc1b69ba6e07e) |
+| LightCMTAT | `0x4bfad6e822fd118c59ac4820b05235a1c54bd6d2c15c8b889b365bb8334ab3d` | `0x5d0ae8c67a0002b58a30894393fe86a0eb2ecf88f93312b80acb8fa117e501a` | [View](https://sepolia.starkscan.co/class/0x04bfad6e822fd118c59ac4820b05235a1c54bd6d2c15c8b889b365bb8334ab3d) |
+
+**Account Used:**
+- Address: `0x77a4f3a1404376cae3ea220ce3ce43ecfdbf9317b61c1b26930976179a8e302`
+- Profile: `factory_deployer`
+
+**Network:**
+- Network: Starknet Sepolia Testnet
+- RPC: `https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_7/...`
+
 ## License
 
 This contract is released under the MPL-2.0 license.
