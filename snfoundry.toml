@@ -16,4 +16,4 @@ url = "http://127.0.0.1:5050"
 [sncast.factory_deployer]
 account = "deployer_foundry"
 accounts-file = "/Users/lancedavis/.starknet_accounts/starknet_open_zeppelin_accounts.json"
-url = "https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_9/lyWjJAFsJ3u1e1h91qZyz683KLct-Rr6"
+url = "https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_9/"
