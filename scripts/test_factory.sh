@@ -18,7 +18,9 @@ echo ""
 # Source environment variables
 if [ ! -f ".env" ]; then
     echo -e "${RED}Error: .env file not found${NC}"
-    echo "Please run ./scripts/deploy_factory.sh first"
+    echo "Please run ./scripts/deploy_factory.sh first to deploy the factory"
+    echo "  ./scripts/deploy_factory.sh sncast    # Deploy with sncast (recommended)"
+    echo "  ./scripts/deploy_factory.sh starkli   # Deploy with starkli (simple)"
     exit 1
 fi
 
@@ -27,7 +29,9 @@ source .env
 # Validate required environment variables
 if [ -z "$FACTORY_ADDRESS" ]; then
     echo -e "${RED}Error: FACTORY_ADDRESS not set${NC}"
-    echo "Please run ./scripts/deploy_factory.sh first"
+    echo "Please run ./scripts/deploy_factory.sh first to deploy the factory"
+    echo "  ./scripts/deploy_factory.sh sncast    # Deploy with sncast (recommended)"
+    echo "  ./scripts/deploy_factory.sh starkli   # Deploy with starkli (simple)"
     exit 1
 fi
 

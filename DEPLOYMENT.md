@@ -50,6 +50,19 @@ Run the deployment script:
 ./scripts/deploy_factory.sh
 ```
 
+The script will prompt you to choose your deployment method:
+- **Option 1**: Deploy with sncast (recommended for new deployments)
+- **Option 2**: Deploy with starkli (simple deployment with known class hashes)
+
+Alternatively, you can specify the deployment method directly:
+```bash
+# Deploy with sncast (recommended)
+./scripts/deploy_factory.sh sncast
+
+# Deploy with starkli (simple)
+./scripts/deploy_factory.sh starkli
+```
+
 This script will:
 1. Build all Cairo contracts
 2. Declare StandardCMTAT, DebtCMTAT, and LightCMTAT contracts
