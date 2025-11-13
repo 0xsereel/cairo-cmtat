@@ -44,26 +44,26 @@ sncast account list
 
 ### Step 1: Deploy the Factory
 
-Run the deployment script:
+Choose your deployment method and run the appropriate script:
 
+**Option 1: Deploy with sncast (recommended for new deployments)**
+```bash
+./scripts/deploy_factory_sncast.sh
+```
+*Uses sncast to declare all contracts and deploy the factory. Best for fresh deployments where contracts haven't been declared yet.*
+
+**Option 2: Deploy with starkli (simple deployment with known class hashes)**
+```bash
+./scripts/deploy_factory_starkli.sh
+```
+*Uses starkli with pre-declared class hashes. Faster if you're using known, already-declared implementations.*
+
+Alternatively, you can use the wrapper script that will prompt you to choose:
 ```bash
 ./scripts/deploy_factory.sh
 ```
 
-The script will prompt you to choose your deployment method:
-- **Option 1**: Deploy with sncast (recommended for new deployments)
-- **Option 2**: Deploy with starkli (simple deployment with known class hashes)
-
-Alternatively, you can specify the deployment method directly:
-```bash
-# Deploy with sncast (recommended)
-./scripts/deploy_factory.sh sncast
-
-# Deploy with starkli (simple)
-./scripts/deploy_factory.sh starkli
-```
-
-This script will:
+The deployment script will:
 1. Build all Cairo contracts
 2. Declare StandardCMTAT, DebtCMTAT, and LightCMTAT contracts
 3. Declare the CMTATFactory contract
