@@ -362,6 +362,233 @@ The factory contract is upgradeable using the OpenZeppelin Upgradeable component
 
 **Note:** Upgrading the factory does NOT affect already deployed tokens. Each token is an independent contract instance.
 
+## Account Setup and Factory Interaction Guide
+
+### Setting Up a Starknet Account
+
+#### Option 1: Using Starknet Foundry (sncast)
+
+1. **Create a new account:**
+```bash
+# Create account configuration
+sncast account create \
+    --name my_deployer \
+    --url https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_7/YOUR_API_KEY
+
+# Deploy the account on-chain
+sncast account deploy \
+    --name my_deployer \
+    --max-fee 0.01
+```
+
+2. **Configure snfoundry.toml:**
+```toml
+[sncast.my_profile]
+account = "my_deployer"
+accounts-file = "~/.starknet_accounts/starknet_open_zeppelin_accounts.json"
+url = "https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_7/YOUR_API_KEY"
+```
+
+3. **Fund your account:**
+   - Get testnet tokens from [Starknet Faucet](https://faucet.goerli.starknet.io/) or [Blastapi Faucet](https://blastapi.io/faucets/starknet-sepolia-eth)
+   - You'll need STRK tokens for transaction fees
+
+#### Option 2: Using Starkli
+
+1. **Create a signer:**
+```bash
+starkli signer keystore new ~/.starknet-wallets/keystore.json
+```
+
+2. **Create an account:**
+```bash
+starkli account oz init ~/.starknet-accounts/account.json
+```
+
+3. **Deploy the account:**
+```bash
+starkli account deploy ~/.starknet-accounts/account.json
+```
+
+#### Option 3: In a Bastion/Server Environment
+
+For deployment in a bastion or CI/CD environment:
+
+1. **Store credentials securely:**
+```bash
+# Create a dedicated directory for Starknet credentials
+mkdir -p ~/.starknet_accounts
+chmod 700 ~/.starknet_accounts
+
+# Store your account JSON securely
+# Ensure the account file has restricted permissions
+chmod 600 ~/.starknet_accounts/starknet_open_zeppelin_accounts.json
+```
+
+2. **Use environment variables for sensitive data:**
+```bash
+export STARKNET_ACCOUNT=my_deployer
+export STARKNET_RPC=https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_7/YOUR_API_KEY
+export ACCOUNT_FILE=~/.starknet_accounts/starknet_open_zeppelin_accounts.json
+```
+
+3. **Create a deployment script:**
+```bash
+#!/bin/bash
+set -e
+
+# Load environment variables
+source .env
+
+# Deploy using sncast
+sncast --account $STARKNET_ACCOUNT \
+       --url $STARKNET_RPC \
+       deploy --class-hash $FACTORY_CLASS_HASH \
+       --constructor-calldata $OWNER_ADDRESS $STANDARD_CLASS_HASH $DEBT_CLASS_HASH $LIGHT_CLASS_HASH
+```
+
+### Interacting with the Factory
+
+Once the factory is deployed, you can use it to deploy CMTAT tokens:
+
+#### Deploying a Standard CMTAT
+
+```bash
+# Set variables
+FACTORY_ADDRESS=0x07c9511c4c88b4286175c0d577d62535ae5ce9465322eaccd7c31c3e87a43d8e
+ADMIN_ADDRESS=0x77a4f3a1404376cae3ea220ce3ce43ecfdbf9317b61c1b26930976179a8e302
+
+# Deploy via factory using --arguments (recommended)
+sncast --profile factory_deployer invoke \
+    --contract-address $FACTORY_ADDRESS \
+    --function deploy_standard_cmtat \
+    --arguments '$ADMIN_ADDRESS, 
+                  "My Security Token", 
+                  "MST", 
+                  1000000_u256, 
+                  $ADMIN_ADDRESS, 
+                  0x697066733a2f2f516d4578616d706c65, 
+                  "Company stock token", 
+                  12345'
+```
+
+**Note:** Use the `--arguments` flag with proper type suffixes (`_u256`) instead of manually splitting u256 values into low/high components. The `--arguments` flag automatically handles serialization based on the contract's ABI.
+
+#### Deploying a Debt CMTAT
+
+```bash
+# Deploy via factory using --arguments (recommended)
+sncast --profile factory_deployer invoke \
+    --contract-address $FACTORY_ADDRESS \
+    --function deploy_debt_cmtat \
+    --arguments '$ADMIN_ADDRESS, 
+                  "Corporate Bond Token", 
+                  "CBT", 
+                  500000_u256, 
+                  $ADMIN_ADDRESS, 
+                  0x697066733a2f2f516d4578616d706c65, 
+                  "US1234567890", 
+                  1735689600, 
+                  500_u256, 
+                  1000_u256, 
+                  0x0, 
+                  0x0, 
+                  23456'
+```
+
+**Note:** All u256 values (initial_supply, interest_rate, par_value) should use the `_u256` suffix.
+
+#### Deploying a Light CMTAT
+
+```bash
+# Deploy via factory using --arguments (recommended)
+sncast --profile factory_deployer invoke \
+    --contract-address $FACTORY_ADDRESS \
+    --function deploy_light_cmtat \
+    --arguments '$ADMIN_ADDRESS, 
+                  "Simple Security Token", 
+                  "SST", 
+                  250000_u256, 
+                  $ADMIN_ADDRESS, 
+                  0x697066733a2f2f516d4578616d706c65, 
+                  34567'
+```
+
+#### Querying Factory Information
+
+```bash
+# Get deployment count
+sncast --profile factory_deployer call \
+    --contract-address $FACTORY_ADDRESS \
+    --function get_deployment_count
+
+# Get deployed contract at specific index
+sncast --profile factory_deployer call \
+    --contract-address $FACTORY_ADDRESS \
+    --function get_deployment_at_index \
+    --calldata 0 0  # index as u256 (low, high)
+
+# Check if contract was deployed by factory
+sncast --profile factory_deployer call \
+    --contract-address $FACTORY_ADDRESS \
+    --function is_deployed_by_factory \
+    --calldata <CONTRACT_ADDRESS>
+
+# Get class hashes
+sncast --profile factory_deployer call \
+    --contract-address $FACTORY_ADDRESS \
+    --function get_standard_class_hash
+
+sncast --profile factory_deployer call \
+    --contract-address $FACTORY_ADDRESS \
+    --function get_debt_class_hash
+
+sncast --profile factory_deployer call \
+    --contract-address $FACTORY_ADDRESS \
+    --function get_light_class_hash
+```
+
+### Using Cairo MCP for Semantic Search
+
+You can use the Cairo Context MCP server to search for examples and documentation:
+
+```bash
+# Search for factory deployment examples
+cline "find examples of deploying contracts using factory pattern in Cairo"
+
+# Get information about CMTAT standards
+cline "explain CMTAT token standards and compliance requirements"
+
+# Find implementation details
+cline "show me how to properly format constructor calldata for CMTAT deployment"
+```
+
+### Best Practices for Production Deployment
+
+1. **Security:**
+   - Never commit private keys or account files to version control
+   - Use hardware wallets or secure key management systems for mainnet
+   - Implement multi-sig for factory ownership on mainnet
+   - Audit all contracts before mainnet deployment
+
+2. **Testing:**
+   - Test all deployments on Sepolia testnet first
+   - Verify all constructor parameters before deployment
+   - Test factory upgrade mechanisms
+   - Monitor gas costs and optimize if needed
+
+3. **Monitoring:**
+   - Set up event listeners for deployment events
+   - Track all deployed contracts in a database
+   - Monitor factory owner address for security
+   - Set up alerts for unusual activity
+
+4. **Documentation:**
+   - Document all deployed contract addresses
+   - Keep a changelog of factory upgrades
+   - Maintain deployment scripts in version control
+   - Document parameter choices and rationale
+
 ## Deployment Log
 
 ### Sepolia Testnet - November 13, 2025
@@ -382,6 +609,143 @@ The factory contract is upgradeable using the OpenZeppelin Upgradeable component
 **Network:**
 - Network: Starknet Sepolia Testnet
 - RPC: `https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_7/...`
+
+**Factory Deployment:**
+
+| Item | Value | Explorer Link |
+|------|-------|---------------|
+| Factory Address | `0x07c9511c4c88b4286175c0d577d62535ae5ce9465322eaccd7c31c3e87a43d8e` | [View](https://sepolia.starkscan.co/contract/0x07c9511c4c88b4286175c0d577d62535ae5ce9465322eaccd7c31c3e87a43d8e) |
+| Deploy Transaction | `0x046adc6e1c71631af2d209ee9a35677a59e6b6cb56a75059b06a48bfa2088ab4` | [View](https://sepolia.starkscan.co/tx/0x046adc6e1c71631af2d209ee9a35677a59e6b6cb56a75059b06a48bfa2088ab4) |
+| Owner | `0x77a4f3a1404376cae3ea220ce3ce43ecfdbf9317b61c1b26930976179a8e302` | - |
+
+**Test Deployments via Factory:**
+
+| Contract Type | Transaction Hash | Parameters Used |
+|---------------|------------------|-----------------|
+| Standard CMTAT | `0x04c30c92b58242d2f6868180a4d94ad7365197fcfa9db03939bfd72686ed573f` | [View Details](#test-deployment-1-standard-cmtat) |
+| Debt CMTAT | `0x02d8d0fccd1b420a92b39ec11d3cb20884e2c0511580b0a681affa0584543cd1` | [View Details](#test-deployment-2-debt-cmtat) |
+| Light CMTAT | `0x00b1fd4f2e10c57775a69e9e45cf452eaf5c0574ca7e59e6a71799de91764627` | [View Details](#test-deployment-3-light-cmtat) |
+
+### Test Deployment 1: Standard CMTAT
+
+**Command:**
+```bash
+sncast --profile factory_deployer invoke \
+    --contract-address 0x07c9511c4c88b4286175c0d577d62535ae5ce9465322eaccd7c31c3e87a43d8e \
+    --function deploy_standard_cmtat \
+    --arguments '0x77a4f3a1404376cae3ea220ce3ce43ecfdbf9317b61c1b26930976179a8e302, 
+                  "Test Standard CMTAT", 
+                  "TSTC", 
+                  1000000_u256, 
+                  0x77a4f3a1404376cae3ea220ce3ce43ecfdbf9317b61c1b26930976179a8e302, 
+                  0x74657374, 
+                  "Test Description", 
+                  12345'
+```
+
+**Parameters Explained:**
+- `admin`: `0x77a4f3a1404376cae3ea220ce3ce43ecfdbf9317b61c1b26930976179a8e302` (deployer account)
+- `name`: `"Test Standard CMTAT"` (token name as ByteArray)
+- `symbol`: `"TSTC"` (token symbol as ByteArray)
+- `initial_supply`: `1000000_u256` (1 million tokens with `_u256` suffix)
+- `recipient`: `0x77a4f3a1404376cae3ea220ce3ce43ecfdbf9317b61c1b26930976179a8e302` (same as admin)
+- `terms`: `0x74657374` (felt252 - represents "test" in hex)
+- `information`: `"Test Description"` (additional info as ByteArray)
+- `salt`: `12345` (unique salt for deterministic address)
+
+**Result:** [View Transaction](https://sepolia.starkscan.co/tx/0x04c30c92b58242d2f6868180a4d94ad7365197fcfa9db03939bfd72686ed573f)
+
+### Test Deployment 2: Debt CMTAT
+
+**Command:**
+```bash
+sncast --profile factory_deployer invoke \
+    --contract-address 0x07c9511c4c88b4286175c0d577d62535ae5ce9465322eaccd7c31c3e87a43d8e \
+    --function deploy_debt_cmtat \
+    --arguments '0x77a4f3a1404376cae3ea220ce3ce43ecfdbf9317b61c1b26930976179a8e302, 
+                  "Test Debt CMTAT", 
+                  "TDBT", 
+                  500000_u256, 
+                  0x77a4f3a1404376cae3ea220ce3ce43ecfdbf9317b61c1b26930976179a8e302, 
+                  0x64656274, 
+                  "US1234567890", 
+                  1735689600, 
+                  500_u256, 
+                  1000_u256, 
+                  0x0, 
+                  0x0, 
+                  23456'
+```
+
+**Parameters Explained:**
+- `admin`: `0x77a4f3a1404376cae3ea220ce3ce43ecfdbf9317b61c1b26930976179a8e302`
+- `name`: `"Test Debt CMTAT"` (ByteArray)
+- `symbol`: `"TDBT"` (ByteArray)
+- `initial_supply`: `500000_u256` (500k tokens)
+- `recipient`: `0x77a4f3a1404376cae3ea220ce3ce43ecfdbf9317b61c1b26930976179a8e302`
+- `terms`: `0x64656274` (felt252 - "debt" in hex)
+- `isin`: `"US1234567890"` (ISIN as ByteArray)
+- `maturity_date`: `1735689600` (u64 Unix timestamp - Jan 1, 2025)
+- `interest_rate`: `500_u256` (5% as 500 basis points)
+- `par_value`: `1000_u256` ($1000 par value)
+- `rule_engine`: `0x0` (zero address - not using rule engine)
+- `snapshot_engine`: `0x0` (zero address - not using snapshot engine)
+- `salt`: `23456`
+
+**Result:** [View Transaction](https://sepolia.starkscan.co/tx/0x02d8d0fccd1b420a92b39ec11d3cb20884e2c0511580b0a681affa0584543cd1)
+
+### Test Deployment 3: Light CMTAT
+
+**Command:**
+```bash
+sncast --profile factory_deployer invoke \
+    --contract-address 0x07c9511c4c88b4286175c0d577d62535ae5ce9465322eaccd7c31c3e87a43d8e \
+    --function deploy_light_cmtat \
+    --arguments '0x77a4f3a1404376cae3ea220ce3ce43ecfdbf9317b61c1b26930976179a8e302, 
+                  "Test Light CMTAT", 
+                  "TLGT", 
+                  250000_u256, 
+                  0x77a4f3a1404376cae3ea220ce3ce43ecfdbf9317b61c1b26930976179a8e302, 
+                  0x6c69676874, 
+                  34567'
+```
+
+**Parameters Explained:**
+- `admin`: `0x77a4f3a1404376cae3ea220ce3ce43ecfdbf9317b61c1b26930976179a8e302`
+- `name`: `"Test Light CMTAT"` (ByteArray)
+- `symbol`: `"TLGT"` (ByteArray)
+- `initial_supply`: `250000_u256` (250k tokens)
+- `recipient`: `0x77a4f3a1404376cae3ea220ce3ce43ecfdbf9317b61c1b26930976179a8e302`
+- `terms`: `0x6c69676874` (felt252 - "light" in hex)
+- `salt`: `34567`
+
+**Result:** [View Transaction](https://sepolia.starkscan.co/tx/0x00b1fd4f2e10c57775a69e9e45cf452eaf5c0574ca7e59e6a71799de91764627)
+
+### Important Notes on Parameter Formatting
+
+1. **ByteArray (Strings)**: Use double quotes `"My String"`
+2. **u256 Values**: Add the `_u256` suffix to ensure proper type, e.g., `1000000_u256`
+3. **u64 Values**: Regular numbers work, e.g., `1735689600`
+4. **felt252**: Can be hex (with `0x` prefix) or decimal
+5. **ContractAddress**: Always use hex format with `0x` prefix
+6. **Zero Address**: Use `0x0` when no address is needed (e.g., for optional engines)
+
+### Verifying Deployments
+
+Query the factory to verify deployments:
+
+```bash
+# Get total number of deployments (should be 3)
+sncast --profile factory_deployer call \
+    --contract-address 0x07c9511c4c88b4286175c0d577d62535ae5ce9465322eaccd7c31c3e87a43d8e \
+    --function get_deployment_count
+
+# Get first deployment address
+sncast --profile factory_deployer call \
+    --contract-address 0x07c9511c4c88b4286175c0d577d62535ae5ce9465322eaccd7c31c3e87a43d8e \
+    --function get_deployment_at_index \
+    --arguments '0_u256'
+```
 
 ## License
 
