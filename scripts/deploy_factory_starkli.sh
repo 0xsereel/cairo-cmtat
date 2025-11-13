@@ -42,28 +42,45 @@ echo ""
 # For the factory, since we need to declare it, let me try using starkli directly
 echo -e "${BLUE}=== Declaring CMTATFactory with starkli ===${NC}"
 
+# Run starkli declare and capture both output and exit code
 FACTORY_OUTPUT=$(starkli declare target/dev/cairo_cmtat_CMTATFactory.contract_class.json \
     --keystore ./local_keystore.json \
     --account "$ACCOUNT_ADDRESS" \
     --rpc "https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_7/${ALCHEMY_API_KEY}" 2>&1)
+DECLARE_EXIT=$?
 
 echo "Declaration output:"
 echo "$FACTORY_OUTPUT"
 
+# Check exit code first - only proceed on success
+if [ $DECLARE_EXIT -ne 0 ]; then
+    echo -e "${RED}✗ Factory declaration command failed with exit code $DECLARE_EXIT${NC}"
+    echo "$FACTORY_OUTPUT"
+    exit 1
+fi
+
+# On success, parse class hash from explicit success patterns only
 if echo "$FACTORY_OUTPUT" | grep -q "Class hash declared:"; then
+    # Extract from "Class hash declared:" line (4th token)
     FACTORY_CLASS_HASH=$(echo "$FACTORY_OUTPUT" | grep "Class hash declared:" | awk '{print $4}')
-    echo -e "${GREEN}✓ Factory class hash: $FACTORY_CLASS_HASH${NC}"
-elif echo "$FACTORY_OUTPUT" | grep -q "0x"; then
-    # Try to extract any class hash from the output
-    FACTORY_CLASS_HASH=$(echo "$FACTORY_OUTPUT" | grep -o "0x[a-fA-F0-9]\{64\}" | head -n1)
-    if [ ! -z "$FACTORY_CLASS_HASH" ]; then
-        echo -e "${YELLOW}Using class hash from output: $FACTORY_CLASS_HASH${NC}"
-    else
-        echo -e "${RED}✗ Could not extract factory class hash${NC}"
+    if [ -z "$FACTORY_CLASS_HASH" ]; then
+        echo -e "${RED}✗ Failed to extract class hash from 'Class hash declared:' line${NC}"
         exit 1
     fi
+    echo -e "${GREEN}✓ Factory class hash declared: $FACTORY_CLASS_HASH${NC}"
+elif echo "$FACTORY_OUTPUT" | grep -q "already declared"; then
+    # Handle "already declared" case - parse known format
+    FACTORY_CLASS_HASH=$(echo "$FACTORY_OUTPUT" | grep "already declared" | grep -o "0x[a-fA-F0-9]\{64\}" | head -n1)
+    if [ -z "$FACTORY_CLASS_HASH" ]; then
+        echo -e "${RED}✗ Failed to extract class hash from 'already declared' message${NC}"
+        exit 1
+    fi
+    echo -e "${YELLOW}✓ Factory already declared with class hash: $FACTORY_CLASS_HASH${NC}"
 else
-    echo -e "${RED}✗ Factory declaration failed${NC}"
+    echo -e "${RED}✗ Unexpected declaration output format - neither 'Class hash declared:' nor 'already declared' found${NC}"
+    echo "Expected either:"
+    echo "  - 'Class hash declared: 0x...'"
+    echo "  - '... already declared ...'"
     exit 1
 fi
 
@@ -78,21 +95,37 @@ echo "  Debt Class Hash: $DEBT_CLASS_HASH"
 echo "  Light Class Hash: $LIGHT_CLASS_HASH"
 echo ""
 
+# Run starkli deploy and capture both output and exit code
 DEPLOY_OUTPUT=$(starkli deploy \
     "$FACTORY_CLASS_HASH" \
     "$ACCOUNT_ADDRESS" "$STANDARD_CLASS_HASH" "$DEBT_CLASS_HASH" "$LIGHT_CLASS_HASH" \
     --keystore ./local_keystore.json \
     --account "$ACCOUNT_ADDRESS" \
-    --rpc "https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_7/${ALCHEMY_API_KEY}")
+    --rpc "https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_7/${ALCHEMY_API_KEY}" 2>&1)
+DEPLOY_EXIT=$?
 
 echo "Deployment output:"
 echo "$DEPLOY_OUTPUT"
 
+# Check exit code first - only proceed on success
+if [ $DEPLOY_EXIT -ne 0 ]; then
+    echo -e "${RED}✗ Factory deployment command failed with exit code $DEPLOY_EXIT${NC}"
+    echo "$DEPLOY_OUTPUT"
+    exit 1
+fi
+
+# On success, parse contract address from explicit success pattern only
 if echo "$DEPLOY_OUTPUT" | grep -q "Contract deployed:"; then
+    # Extract from "Contract deployed:" line (3rd token)
     FACTORY_ADDRESS=$(echo "$DEPLOY_OUTPUT" | grep "Contract deployed:" | awk '{print $3}')
+    if [ -z "$FACTORY_ADDRESS" ]; then
+        echo -e "${RED}✗ Failed to extract contract address from 'Contract deployed:' line${NC}"
+        exit 1
+    fi
     echo -e "${GREEN}✓ Factory deployed at: $FACTORY_ADDRESS${NC}"
 else
-    echo -e "${RED}✗ Factory deployment failed${NC}"
+    echo -e "${RED}✗ Unexpected deployment output format - 'Contract deployed:' not found${NC}"
+    echo "Expected: 'Contract deployed: 0x...'"
     exit 1
 fi
 
