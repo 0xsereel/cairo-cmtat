@@ -31,7 +31,13 @@ mod AllowlistCMTAT {
             amount: u256
         ) {
             let contract_state = ERC20Component::HasComponent::get_contract(@self);
-            let zero_address: ContractAddress = 0.try_into().unwrap();
+            
+            // Short-circuit if allowlist feature is disabled
+            if !contract_state.allowlist_enabled.read() {
+                return;
+            }
+            
+            let zero_address: ContractAddress = starknet::contract_address_const::<0>();
             
             // Skip allowlist check for minting (from == 0) and burning (recipient == 0)
             if from != zero_address && recipient != zero_address {

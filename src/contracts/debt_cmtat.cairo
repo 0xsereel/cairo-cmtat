@@ -73,6 +73,8 @@ mod DebtCMTAT {
         DebtSet: DebtSet,
         CreditEventsSet: CreditEventsSet,
         DebtEngineSet: DebtEngineSet,
+        SnapshotEngineSet: SnapshotEngineSet,
+        DocumentEngineSet: DocumentEngineSet,
         DefaultFlagged: DefaultFlagged,
         AddressFrozen: AddressFrozen,
         AddressUnfrozen: AddressUnfrozen,
@@ -113,6 +115,16 @@ mod DebtCMTAT {
     #[derive(Drop, starknet::Event)]
     struct DebtEngineSet {
         pub new_debt_engine: ContractAddress,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct SnapshotEngineSet {
+        pub new_snapshot_engine: ContractAddress,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct DocumentEngineSet {
+        pub new_document_engine: ContractAddress,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -343,6 +355,15 @@ mod DebtCMTAT {
         fn burn_and_mint(ref self: ContractState, from: ContractAddress, to: ContractAddress, value: u256) -> bool {
             self.access_control.assert_only_role(MINTER_ROLE);
             assert(!self.paused(), 'Contract is paused');
+            
+            // Validate addresses are not frozen
+            assert(!self.is_frozen(from), 'From address is frozen');
+            assert(!self.is_frozen(to), 'To address is frozen');
+            
+            // Verify sufficient active balance before burning
+            let active_balance = self.get_active_balance_of(from);
+            assert(active_balance >= value, 'Insufficient active balance');
+            
             self.erc20._burn(from, value);
             self.emit(Burn { from, value });
             self.erc20._mint(to, value);
@@ -354,6 +375,7 @@ mod DebtCMTAT {
         fn burn(ref self: ContractState, value: u256) -> bool {
             let from = get_caller_address();
             assert(!self.paused(), 'Contract is paused');
+            assert(!self.is_frozen(from), 'Sender frozen');
             self.erc20._burn(from, value);
             self.emit(Burn { from, value });
             true
@@ -361,6 +383,7 @@ mod DebtCMTAT {
 
         fn burn_from(ref self: ContractState, from: ContractAddress, value: u256) -> bool {
             assert(!self.paused(), 'Contract is paused');
+            assert(!self.is_frozen(from), 'Sender frozen');
             let spender = get_caller_address();
             self.erc20._spend_allowance(from, spender, value);
             self.erc20._burn(from, value);
@@ -380,6 +403,7 @@ mod DebtCMTAT {
                 }
                 let from = *accounts.at(i);
                 let value = *values.at(i);
+                assert(!self.is_frozen(from), 'Sender frozen');
                 self.erc20._burn(from, value);
                 self.emit(Burn { from, value });
                 i += 1;
@@ -460,6 +484,11 @@ mod DebtCMTAT {
         fn freeze_partial_tokens(ref self: ContractState, account: ContractAddress, value: u256) -> bool {
             self.access_control.assert_only_role(ERC20ENFORCER_ROLE);
             let current_frozen = self.frozen_tokens.read(account);
+            let balance = self.erc20.balance_of(account);
+            
+            // Ensure frozen tokens never exceed account balance
+            assert(current_frozen + value <= balance, 'Cannot freeze more than balance');
+            
             self.frozen_tokens.write(account, current_frozen + value);
             self.emit(TokensFrozen { account, amount: value });
             true
@@ -533,6 +562,7 @@ mod DebtCMTAT {
         fn set_snapshot_engine(ref self: ContractState, snapshot_engine_: ContractAddress) -> bool {
             self.access_control.assert_only_role(DEFAULT_ADMIN_ROLE);
             self.snapshot_engine.write(snapshot_engine_);
+            self.emit(SnapshotEngineSet { new_snapshot_engine: snapshot_engine_ });
             true
         }
 
@@ -543,6 +573,7 @@ mod DebtCMTAT {
         fn set_document_engine(ref self: ContractState, document_engine_: ContractAddress) -> bool {
             self.access_control.assert_only_role(DEFAULT_ADMIN_ROLE);
             self.document_engine.write(document_engine_);
+            self.emit(DocumentEngineSet { new_document_engine: document_engine_ });
             true
         }
 
