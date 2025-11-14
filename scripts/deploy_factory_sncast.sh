@@ -52,42 +52,78 @@ declare_contract() {
     
     echo -e "${BLUE}=== Declaring ${contract_name} ===${NC}"
     
-    # Run sncast declare and capture both output and exit code
+    # Retry logic for nonce errors
+    local max_retries=3
+    local retry_count=0
     local output
-    output=$(sncast declare --contract-name $contract_name \
-        --url "$RPC_URL" 2>&1)
-    local declare_exit=$?
+    local declare_exit
     
-    echo "Declaration output:"
-    echo "$output"
+    while [ $retry_count -lt $max_retries ]; do
+        # Run sncast declare and capture both output and exit code
+        output=$(sncast declare --contract-name $contract_name \
+            --url "$RPC_URL" 2>&1)
+        declare_exit=$?
+        
+        echo "Declaration output (attempt $((retry_count + 1))):"
+        echo "$output"
+        
+        # Check if it's a nonce error
+        if echo "$output" | grep -qi "Invalid transaction nonce"; then
+            retry_count=$((retry_count + 1))
+            if [ $retry_count -lt $max_retries ]; then
+                echo -e "${YELLOW}⏳ Nonce error detected, waiting 5 seconds before retry...${NC}"
+                sleep 5
+                continue
+            fi
+        else
+            # Not a nonce error, break out of retry loop
+            break
+        fi
+    done
     
-    # Check exit code first - only proceed on success (0) or already declared
-    if [ $declare_exit -eq 0 ]; then
-        # Successful declaration - extract from "Class hash declared:" line
-        if echo "$output" | grep -q "Class hash declared:"; then
+    # Check for already declared first (can happen with exit code 0 or non-zero)
+    if echo "$output" | grep -qi "already declared\|same class hash"; then
+        # Contract already declared - extract class hash from error message
+        echo -e "${YELLOW}✓ Contract already declared${NC}"
+        local class_hash
+        # Try to extract the class hash from the output (it should contain the hex)
+        class_hash=$(echo "$output" | grep -o "0x[a-fA-F0-9]\{60,66\}" | head -n1)
+        
+        if [ -z "$class_hash" ]; then
+            # If not in output, try using starkli or computing from artifact
+            echo -e "${YELLOW}Computing class hash from artifact...${NC}"
+            local artifact_file="target/dev/cairo_cmtat_${contract_name}.contract_class.json"
+            if [ -f "$artifact_file" ]; then
+                # Use starkli to compute class hash (if available)
+                if command -v starkli &> /dev/null; then
+                    class_hash=$(starkli class-hash "$artifact_file" 2>/dev/null || echo "")
+                fi
+            fi
+        fi
+        
+        if [ -z "$class_hash" ]; then
+            echo -e "${RED}✗ Failed to extract class hash${NC}"
+            echo "Output was: $output"
+            echo "Please check if the contract was declared and provide the class hash manually"
+            return 1
+        fi
+        echo -e "${GREEN}✓ Using class hash: $class_hash${NC}"
+        eval "$var_name=$class_hash"
+    elif [ $declare_exit -eq 0 ]; then
+        # Successful declaration - extract from output
+        if echo "$output" | grep -q "Class [Hh]ash"; then
             local class_hash
-            class_hash=$(echo "$output" | grep "Class hash declared:" | grep -o "0x[a-fA-F0-9]\{64\}" | head -n1)
+            class_hash=$(echo "$output" | grep -i "Class.*[Hh]ash" | grep -o "0x[a-fA-F0-9]\{1,64\}" | head -n1)
             if [ -z "$class_hash" ]; then
-                echo -e "${RED}✗ Failed to extract class hash from 'Class hash declared:' line${NC}"
+                echo -e "${RED}✗ Failed to extract class hash from output${NC}"
                 return 1
             fi
             echo -e "${GREEN}✓ Class hash declared: $class_hash${NC}"
             eval "$var_name=$class_hash"
         else
-            echo -e "${RED}✗ Unexpected success output format - 'Class hash declared:' not found${NC}"
+            echo -e "${RED}✗ Unexpected success output format${NC}"
             return 1
         fi
-    elif echo "$output" | grep -q "already declared"; then
-        # Contract already declared - extract from known "already declared" pattern
-        echo -e "${YELLOW}✓ Contract already declared${NC}"
-        local class_hash
-        class_hash=$(echo "$output" | grep "already declared" | grep -o "0x[a-fA-F0-9]\{64\}" | head -n1)
-        if [ -z "$class_hash" ]; then
-            echo -e "${RED}✗ Failed to extract class hash from 'already declared' message${NC}"
-            return 1
-        fi
-        echo -e "${GREEN}✓ Using existing class hash: $class_hash${NC}"
-        eval "$var_name=$class_hash"
     else
         # Genuine failure
         echo -e "${RED}✗ Failed to declare $contract_name (exit code: $declare_exit)${NC}"
@@ -101,6 +137,7 @@ declare_contract() {
 declare_contract "StandardCMTAT" "STANDARD_CLASS_HASH"
 declare_contract "DebtCMTAT" "DEBT_CLASS_HASH"  
 declare_contract "LightCMTAT" "LIGHT_CLASS_HASH"
+declare_contract "AllowlistCMTAT" "ALLOWLIST_CLASS_HASH"
 
 # Declare the Factory contract
 declare_contract "CMTATFactory" "FACTORY_CLASS_HASH"
@@ -112,12 +149,13 @@ echo "  Owner: $ADMIN_ADDRESS"
 echo "  Standard Class Hash: $STANDARD_CLASS_HASH"
 echo "  Debt Class Hash: $DEBT_CLASS_HASH"
 echo "  Light Class Hash: $LIGHT_CLASS_HASH"
+echo "  Allowlist Class Hash: $ALLOWLIST_CLASS_HASH"
 echo ""
 
 # Run sncast deploy and capture both output and exit code
 FACTORY_OUTPUT=$(sncast deploy \
     --class-hash "$FACTORY_CLASS_HASH" \
-    --constructor-calldata "$ADMIN_ADDRESS" "$STANDARD_CLASS_HASH" "$DEBT_CLASS_HASH" "$LIGHT_CLASS_HASH" \
+    --constructor-calldata "$ADMIN_ADDRESS" "$STANDARD_CLASS_HASH" "$DEBT_CLASS_HASH" "$LIGHT_CLASS_HASH" "$ALLOWLIST_CLASS_HASH" \
     --url "$RPC_URL" 2>&1)
 DEPLOY_EXIT=$?
 
@@ -170,6 +208,7 @@ ADMIN_ADDRESS=$ADMIN_ADDRESS
 STANDARD_CMTAT_CLASS_HASH=$STANDARD_CLASS_HASH
 DEBT_CMTAT_CLASS_HASH=$DEBT_CLASS_HASH
 LIGHT_CMTAT_CLASS_HASH=$LIGHT_CLASS_HASH
+ALLOWLIST_CMTAT_CLASS_HASH=$ALLOWLIST_CLASS_HASH
 FACTORY_CLASS_HASH=$FACTORY_CLASS_HASH
 FACTORY_ADDRESS=$FACTORY_ADDRESS
 EOF
@@ -185,6 +224,7 @@ echo -e "Factory Address:        ${FACTORY_ADDRESS}"
 echo -e "Standard CMTAT Class:   ${STANDARD_CLASS_HASH}"
 echo -e "Debt CMTAT Class:       ${DEBT_CLASS_HASH}"
 echo -e "Light CMTAT Class:      ${LIGHT_CLASS_HASH}"
+echo -e "Allowlist CMTAT Class:  ${ALLOWLIST_CLASS_HASH}"
 echo -e "Factory Class:          ${FACTORY_CLASS_HASH}"
 echo ""
 echo -e "${BLUE}🔗 Starkscan Links:${NC}"
@@ -194,6 +234,7 @@ echo -e "${BLUE}📋 Next Steps:${NC}"
 echo "1. Test Standard CMTAT deployment via factory"
 echo "2. Test Debt CMTAT deployment via factory"  
 echo "3. Test Light CMTAT deployment via factory"
-echo "4. Verify deployment tracking functions"
+echo "4. Test Allowlist CMTAT deployment via factory"
+echo "5. Verify deployment tracking functions"
 echo ""
 echo -e "${GREEN}Ready for testing! Run: ./scripts/test_factory.sh${NC}"
