@@ -378,6 +378,7 @@ mod DebtCMTAT {
 
         // ============ Burning Functions ============
         fn burn(ref self: ContractState, value: u256) -> bool {
+            self.access_control.assert_only_role(BURNER_ROLE);
             let from = get_caller_address();
             assert(!self.deactivated(), 'Contract is deactivated');
             assert(!self.is_frozen(from), 'Sender frozen');

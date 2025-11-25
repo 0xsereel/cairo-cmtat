@@ -273,6 +273,7 @@ mod LightCMTAT {
 
         // ============ Burning Functions ============
         fn burn(ref self: ContractState, value: u256) -> bool {
+            self.access_control.assert_only_role(DEFAULT_ADMIN_ROLE);
             let from = get_caller_address();
             assert(!self.deactivated(), 'Contract is deactivated');
             self.erc20.burn(from, value);
