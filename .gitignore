@@ -29,6 +29,7 @@ Thumbs.db
 # Environment
 .env
 .env.local
+.venv
 
 notes.txt
 

@@ -307,7 +307,7 @@ mod StandardCMTAT {
         // ============ Minting Functions ============
         fn mint(ref self: ContractState, to: ContractAddress, value: u256) -> bool {
             self.access_control.assert_only_role(MINTER_ROLE);
-            assert(!self.paused(), 'Contract is paused');
+            assert(!self.deactivated(), 'Contract is deactivated');
             self.erc20.mint(to, value);
             self.emit(Mint { to, value });
             true
@@ -315,7 +315,7 @@ mod StandardCMTAT {
 
         fn batch_mint(ref self: ContractState, tos: Span<ContractAddress>, values: Span<u256>) -> bool {
             self.access_control.assert_only_role(MINTER_ROLE);
-            assert(!self.paused(), 'Contract is paused');
+            assert(!self.deactivated(), 'Contract is deactivated');
             assert(tos.len() == values.len(), 'Arrays length mismatch');
             
             let mut i: u32 = 0;
@@ -335,6 +335,7 @@ mod StandardCMTAT {
         fn crosschain_mint(ref self: ContractState, to: ContractAddress, value: u256) -> bool {
             self.access_control.assert_only_role(CROSS_CHAIN_ROLE);
             assert(!self.paused(), 'Contract is paused');
+            assert(!self.deactivated(), 'Contract is deactivated');
             self.erc20.mint(to, value);
             self.emit(Mint { to, value });
             true
@@ -342,7 +343,7 @@ mod StandardCMTAT {
 
         fn burn_and_mint(ref self: ContractState, from: ContractAddress, to: ContractAddress, value: u256) -> bool {
             self.access_control.assert_only_role(MINTER_ROLE);
-            assert(!self.paused(), 'Contract is paused');
+            assert(!self.deactivated(), 'Contract is deactivated');
             self.erc20.burn(from, value);
             self.emit(Burn { from, value });
             self.erc20.mint(to, value);
@@ -353,14 +354,14 @@ mod StandardCMTAT {
         // ============ Burning Functions ============
         fn burn(ref self: ContractState, value: u256) -> bool {
             let from = get_caller_address();
-            assert(!self.paused(), 'Contract is paused');
+            assert(!self.deactivated(), 'Contract is deactivated');
             self.erc20.burn(from, value);
             self.emit(Burn { from, value });
             true
         }
 
         fn burn_from(ref self: ContractState, from: ContractAddress, value: u256) -> bool {
-            assert(!self.paused(), 'Contract is paused');
+            assert(!self.deactivated(), 'Contract is deactivated');
             let spender = get_caller_address();
             self.erc20._spend_allowance(from, spender, value);
             self.erc20.burn(from, value);
@@ -370,7 +371,7 @@ mod StandardCMTAT {
 
         fn batch_burn(ref self: ContractState, accounts: Span<ContractAddress>, values: Span<u256>) -> bool {
             self.access_control.assert_only_role(BURNER_ROLE);
-            assert(!self.paused(), 'Contract is paused');
+            assert(!self.deactivated(), 'Contract is deactivated');
             assert(accounts.len() == values.len(), 'Arrays length mismatch');
             
             let mut i: u32 = 0;
@@ -390,6 +391,7 @@ mod StandardCMTAT {
         fn crosschain_burn(ref self: ContractState, from: ContractAddress, value: u256) -> bool {
             self.access_control.assert_only_role(CROSS_CHAIN_ROLE);
             assert(!self.paused(), 'Contract is paused');
+            assert(!self.deactivated(), 'Contract is deactivated');
             self.erc20.burn(from, value);
             self.emit(Burn { from, value });
             true
