@@ -7,8 +7,8 @@ on:
     branches: [ main, develop ]
 
 env:
-  SCARB_VERSION: 2.6.4
-  CAIRO_VERSION: 2.6.3
+  SCARB_VERSION: 2.13.1
+  CAIRO_VERSION: 2.13.1
 
 jobs:
   test:

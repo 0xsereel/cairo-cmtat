@@ -226,9 +226,11 @@ fn flag_default(ref self: ContractState) -> bool
 ```cairo
 fn crosschain_mint(ref self: ContractState, to: ContractAddress, value: u256) -> bool
 fn crosschain_burn(ref self: ContractState, from: ContractAddress, value: u256) -> bool
-fn restriction_code(self: @ContractState, from: ContractAddress, to: ContractAddress, value: u256) -> u8
-fn message_for_transfer_restriction(self: @ContractState, restriction_code: u8) -> ByteArray
+fn restriction_code(self: @ContractState, from: ContractAddress, to: ContractAddress, value: u256) -> StandardCMTAT::RESTRICTION_CODE
+fn message_for_transfer_restriction(self: @ContractState, restriction_code: StandardCMTAT::RESTRICTION_CODE) -> ByteArray
 ```
+
+> **Note:** The `restriction_code` and `message_for_transfer_restriction` function signatures now use `StandardCMTAT::RESTRICTION_CODE` instead of `u8` for improved type safety. Callers must regenerate ABI/dispatcher after this signature change.
 
 ---
 
