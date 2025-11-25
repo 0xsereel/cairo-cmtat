@@ -3,6 +3,7 @@
 
 use starknet::ContractAddress;
 
+
 /// Snapshot data structure
 #[derive(Drop, Serde, starknet::Store)]
 pub struct Snapshot {
@@ -49,6 +50,10 @@ mod SimpleSnapshotEngine {
     use super::{ISnapshotEngine, Snapshot};
     use openzeppelin::access::ownable::OwnableComponent;
     use starknet::{ContractAddress, get_block_timestamp, get_caller_address};
+    use starknet::storage::{
+        Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
+        StoragePointerWriteAccess,
+    };
 
     component!(path: OwnableComponent, storage: ownable, event: OwnableEvent);
 
@@ -64,11 +69,11 @@ mod SimpleSnapshotEngine {
         // Snapshot ID counter
         next_snapshot_id: u64,
         // snapshot_id => Snapshot data
-        snapshots: LegacyMap<u64, Snapshot>,
+        snapshots: Map<u64, Snapshot>,
         // snapshot_id => account => balance
-        balances_at_snapshot: LegacyMap<(u64, ContractAddress), u256>,
+        balances_at_snapshot: Map<(u64, ContractAddress), u256>,
         // Scheduled snapshots: timestamp => snapshot_id
-        scheduled_snapshots: LegacyMap<u64, u64>,
+        scheduled_snapshots: Map<u64, u64>,
     }
 
     #[event]

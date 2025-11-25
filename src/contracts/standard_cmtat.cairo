@@ -5,17 +5,24 @@ use starknet::ContractAddress;
 
 #[starknet::contract]
 mod StandardCMTAT {
-    use openzeppelin::token::erc20::{ERC20Component};
+    use core::num::traits::{Zero};
+    use openzeppelin::token::erc20::{ERC20Component, DefaultConfig};
     use openzeppelin::access::accesscontrol::{AccessControlComponent, DEFAULT_ADMIN_ROLE};
     use openzeppelin::introspection::src5::SRC5Component;
     use starknet::{ContractAddress, get_caller_address};
+    use starknet::storage::{
+        Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
+        StoragePointerWriteAccess,
+    };
 
     component!(path: ERC20Component, storage: erc20, event: ERC20Event);
     component!(path: AccessControlComponent, storage: access_control, event: AccessControlEvent);
     component!(path: SRC5Component, storage: src5, event: SRC5Event);
-
+    
     #[abi(embed_v0)]
     impl ERC20MixinImpl = ERC20Component::ERC20MixinImpl<ContractState>;
+
+  
     #[abi(embed_v0)]
     impl AccessControlMixinImpl = AccessControlComponent::AccessControlMixinImpl<ContractState>;
 
@@ -36,6 +43,7 @@ mod StandardCMTAT {
     struct Storage {
         #[substorage(v0)]
         erc20: ERC20Component::Storage,
+ 
         #[substorage(v0)]
         access_control: AccessControlComponent::Storage,
         #[substorage(v0)]
@@ -45,14 +53,26 @@ mod StandardCMTAT {
         token_id: ByteArray,
         paused: bool,
         deactivated: bool,
-        frozen_addresses: LegacyMap<ContractAddress, bool>,
-        frozen_tokens: LegacyMap<ContractAddress, u256>,
+        frozen_addresses: Map<ContractAddress, bool>,
+        frozen_tokens: Map<ContractAddress, u256>,
         // Engine addresses
         snapshot_engine: ContractAddress,
         document_engine: ContractAddress,
         // Trusted forwarder for meta-transactions
         trusted_forwarder: ContractAddress,
     }
+
+    #[derive(Drop, Serde, PartialEq)]
+    pub enum RESTRICTION_CODE {
+        TRANSFER_OK,
+        TRANSFER_REJECTED_DEACTIVATED,
+        TRANSFER_REJECTED_PAUSED,
+        TRANSFER_REJECTED_FROM_FROZEN,
+        TRANSFER_REJECTED_TO_FROZEN,
+        TRANSFER_REJECTED_SPENDER_FROZEN,
+        TRANSFER_REJECTED_FROM_INSUFFICIENT_ACTIVE_BALANCE
+    }
+
 
     #[event]
     #[derive(Drop, starknet::Event)]
@@ -177,11 +197,11 @@ mod StandardCMTAT {
         self.paused.write(false);
         self.deactivated.write(false);
         self.trusted_forwarder.write(forwarder_irrevocable);
-        self.snapshot_engine.write(starknet::contract_address_const::<0>());
-        self.document_engine.write(starknet::contract_address_const::<0>());
+        self.snapshot_engine.write(Zero::zero());
+        self.document_engine.write(Zero::zero());
 
         if initial_supply > 0 {
-            self.erc20._mint(recipient, initial_supply);
+            self.erc20.mint(recipient, initial_supply);
         }
     }
 
@@ -230,7 +250,9 @@ mod StandardCMTAT {
                     break;
                 }
                 let account = *accounts.at(i);
-                balances.append(self.erc20.balance_of(account));
+               
+                balances.append(self.balance_of( account));
+                
                 i += 1;
             };
             balances
@@ -279,14 +301,14 @@ mod StandardCMTAT {
 
         // ============ Version ============
         fn version(self: @ContractState) -> ByteArray {
-            "2.0.0"
+            "0.1.0"
         }
 
         // ============ Minting Functions ============
         fn mint(ref self: ContractState, to: ContractAddress, value: u256) -> bool {
             self.access_control.assert_only_role(MINTER_ROLE);
             assert(!self.paused(), 'Contract is paused');
-            self.erc20._mint(to, value);
+            self.erc20.mint(to, value);
             self.emit(Mint { to, value });
             true
         }
@@ -303,7 +325,7 @@ mod StandardCMTAT {
                 }
                 let to = *tos.at(i);
                 let value = *values.at(i);
-                self.erc20._mint(to, value);
+                self.erc20.mint(to, value);
                 self.emit(Mint { to, value });
                 i += 1;
             };
@@ -313,7 +335,7 @@ mod StandardCMTAT {
         fn crosschain_mint(ref self: ContractState, to: ContractAddress, value: u256) -> bool {
             self.access_control.assert_only_role(CROSS_CHAIN_ROLE);
             assert(!self.paused(), 'Contract is paused');
-            self.erc20._mint(to, value);
+            self.erc20.mint(to, value);
             self.emit(Mint { to, value });
             true
         }
@@ -321,9 +343,9 @@ mod StandardCMTAT {
         fn burn_and_mint(ref self: ContractState, from: ContractAddress, to: ContractAddress, value: u256) -> bool {
             self.access_control.assert_only_role(MINTER_ROLE);
             assert(!self.paused(), 'Contract is paused');
-            self.erc20._burn(from, value);
+            self.erc20.burn(from, value);
             self.emit(Burn { from, value });
-            self.erc20._mint(to, value);
+            self.erc20.mint(to, value);
             self.emit(Mint { to, value });
             true
         }
@@ -332,7 +354,7 @@ mod StandardCMTAT {
         fn burn(ref self: ContractState, value: u256) -> bool {
             let from = get_caller_address();
             assert(!self.paused(), 'Contract is paused');
-            self.erc20._burn(from, value);
+            self.erc20.burn(from, value);
             self.emit(Burn { from, value });
             true
         }
@@ -341,7 +363,7 @@ mod StandardCMTAT {
             assert(!self.paused(), 'Contract is paused');
             let spender = get_caller_address();
             self.erc20._spend_allowance(from, spender, value);
-            self.erc20._burn(from, value);
+            self.erc20.burn(from, value);
             self.emit(Burn { from, value });
             true
         }
@@ -358,7 +380,7 @@ mod StandardCMTAT {
                 }
                 let from = *accounts.at(i);
                 let value = *values.at(i);
-                self.erc20._burn(from, value);
+                self.erc20.burn(from, value);
                 self.emit(Burn { from, value });
                 i += 1;
             };
@@ -368,7 +390,7 @@ mod StandardCMTAT {
         fn crosschain_burn(ref self: ContractState, from: ContractAddress, value: u256) -> bool {
             self.access_control.assert_only_role(CROSS_CHAIN_ROLE);
             assert(!self.paused(), 'Contract is paused');
-            self.erc20._burn(from, value);
+            self.erc20.burn(from, value);
             self.emit(Burn { from, value });
             true
         }
@@ -475,50 +497,49 @@ mod StandardCMTAT {
         }
 
         // ============ Transfer Validation ============
-        fn restriction_code(self: @ContractState, from: ContractAddress, to: ContractAddress, value: u256) -> u8 {
-            // Check if contract is paused
-            if self.paused() {
-                return 2; // Contract paused
-            }
-
+        fn restriction_code(self: @ContractState, from: ContractAddress, to: ContractAddress, value: u256) -> RESTRICTION_CODE {
             // Check if contract is deactivated
             if self.deactivated() {
-                return 3; // Contract deactivated
+                return RESTRICTION_CODE::TRANSFER_REJECTED_DEACTIVATED; // Contract deactivated
+            }
+
+            // Check if contract is paused
+            if self.paused() {
+                return RESTRICTION_CODE::TRANSFER_REJECTED_PAUSED; // Contract paused
             }
 
             // Check if addresses are frozen
-            if self.is_frozen(from) || self.is_frozen(to) {
-                return 1; // Address frozen
+            if self.is_frozen(from) {
+                return RESTRICTION_CODE::TRANSFER_REJECTED_FROM_FROZEN; 
+            }
+
+            if self.is_frozen(to) {
+                return RESTRICTION_CODE::TRANSFER_REJECTED_TO_FROZEN; 
             }
 
             // Check active balance for sender (only if not a mint operation)
-            if from != starknet::contract_address_const::<0>() {
+            if from != Zero::zero() {
                 let active_balance = self.get_active_balance_of(from);
                 if active_balance < value {
-                    return 4; // Insufficient active balance
+                    // Insufficient active balance
+                    return RESTRICTION_CODE::TRANSFER_REJECTED_FROM_INSUFFICIENT_ACTIVE_BALANCE; 
                 }
             }
-
-            0 // No restriction
+            
+            // No restriction
+            RESTRICTION_CODE::TRANSFER_OK 
         }
 
-        fn message_for_transfer_restriction(self: @ContractState, restriction_code: u8) -> ByteArray {
-            if restriction_code == 0 {
-                return "No restriction";
+        fn message_for_transfer_restriction(self: @ContractState, restriction_code: RESTRICTION_CODE) -> ByteArray {
+            match restriction_code {
+                RESTRICTION_CODE::TRANSFER_OK => { return "No restriction"; },
+                RESTRICTION_CODE::TRANSFER_REJECTED_DEACTIVATED => { return "Contract is deactivated"; },
+                RESTRICTION_CODE::TRANSFER_REJECTED_PAUSED => { return "Contract is paused"; },
+                RESTRICTION_CODE::TRANSFER_REJECTED_TO_FROZEN => { return "Address To is frozen"; },
+                RESTRICTION_CODE::TRANSFER_REJECTED_FROM_FROZEN => { return "Address From is frozen"; },
+                RESTRICTION_CODE::TRANSFER_REJECTED_SPENDER_FROZEN => { return "Spender is frozen"; },
+                RESTRICTION_CODE::TRANSFER_REJECTED_FROM_INSUFFICIENT_ACTIVE_BALANCE => { return "Insufficient active balance"; },
             }
-            if restriction_code == 1 {
-                return "Address is frozen";
-            }
-            if restriction_code == 2 {
-                return "Contract is paused";
-            }
-            if restriction_code == 3 {
-                return "Contract is deactivated";
-            }
-            if restriction_code == 4 {
-                return "Insufficient active balance";
-            }
-            "Unknown restriction"
         }
 
         // ============ Engine Management ============
@@ -562,12 +583,12 @@ mod StandardCMTAT {
             amount: u256
         ) {
             let contract_state = ERC20Component::HasComponent::get_contract(@self);
-            let zero_address: ContractAddress = starknet::contract_address_const::<0>();
+            let zero_address: ContractAddress = Zero::zero();
 
             // Only check transfers (not mint/burn)
             if from != zero_address && recipient != zero_address {
                 let restriction = contract_state.restriction_code(from, recipient, amount);
-                assert(restriction == 0, 'Transfer restricted');
+                assert(restriction == RESTRICTION_CODE::TRANSFER_OK, 'Transfer restricted');
             }
         }
 
@@ -582,6 +603,7 @@ mod StandardCMTAT {
 
 #[starknet::interface]
 trait IStandardCMTAT<TContractState> {
+  
     // Information
     fn terms(self: @TContractState) -> ByteArray;
     fn set_terms(ref self: TContractState, new_terms: ByteArray) -> bool;
@@ -637,8 +659,8 @@ trait IStandardCMTAT<TContractState> {
     fn get_active_balance_of(self: @TContractState, account: ContractAddress) -> u256;
     
     // Transfer Validation
-    fn restriction_code(self: @TContractState, from: ContractAddress, to: ContractAddress, value: u256) -> u8;
-    fn message_for_transfer_restriction(self: @TContractState, restriction_code: u8) -> ByteArray;
+    fn restriction_code(self: @TContractState, from: ContractAddress, to: ContractAddress, value: u256) ->   StandardCMTAT::RESTRICTION_CODE;
+    fn message_for_transfer_restriction(self: @TContractState, restriction_code: StandardCMTAT::RESTRICTION_CODE) -> ByteArray;
     
     // Engines
     fn set_snapshot_engine(ref self: TContractState, snapshot_engine_: ContractAddress) -> bool;

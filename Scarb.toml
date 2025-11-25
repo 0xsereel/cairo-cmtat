@@ -1,15 +1,16 @@
 [package]
 name = "cairo_cmtat"
-version = "1.0.0"
-edition = "2023_11"
+version = "0.1.0"
+edition = "2024_07"
 description = "Comprehensive CMTAT implementation in Cairo for Starknet"
 license = "MPL-2.0"
 
 [dependencies]
-openzeppelin = { git = "https://github.com/OpenZeppelin/cairo-contracts.git", tag = "v0.13.0" }
+openzeppelin = { git = "https://github.com/OpenZeppelin/cairo-contracts.git", tag = "v2.0.0" }
+starknet = ">=2.13.1"
 
 [dev-dependencies]
-snforge_std = { git = "https://github.com/foundry-rs/starknet-foundry", tag = "v0.25.0" }
+snforge_std = { git = "https://github.com/foundry-rs/starknet-foundry", tag = "v0.52.0" }
 
 [[target.starknet-contract]]
 sierra = true

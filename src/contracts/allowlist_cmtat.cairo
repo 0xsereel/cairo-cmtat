@@ -5,10 +5,15 @@ use starknet::ContractAddress;
 
 #[starknet::contract]
 mod AllowlistCMTAT {
-    use openzeppelin::token::erc20::ERC20Component;
+    use core::num::traits::{Zero};
+    use openzeppelin::token::erc20::{ERC20Component, DefaultConfig};
     use openzeppelin::access::accesscontrol::{AccessControlComponent, DEFAULT_ADMIN_ROLE};
     use openzeppelin::introspection::src5::SRC5Component;
     use starknet::{ContractAddress, get_caller_address};
+    use starknet::storage::{
+        Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
+        StoragePointerWriteAccess,
+    };
 
     component!(path: ERC20Component, storage: erc20, event: ERC20Event);
     component!(path: AccessControlComponent, storage: access_control, event: AccessControlEvent);
@@ -37,7 +42,7 @@ mod AllowlistCMTAT {
                 return;
             }
             
-            let zero_address: ContractAddress = starknet::contract_address_const::<0>();
+            let zero_address = Zero::zero();
             
             // Skip allowlist check for minting (from == 0) and burning (recipient == 0)
             if from != zero_address && recipient != zero_address {
@@ -84,10 +89,10 @@ mod AllowlistCMTAT {
         deactivated: bool,
         // Allowlist storage
         allowlist_enabled: bool,
-        allowlist: LegacyMap<ContractAddress, bool>,
+        allowlist: Map<ContractAddress, bool>,
         // Partial token freezing
-        frozen_addresses: LegacyMap<ContractAddress, bool>,
-        frozen_tokens: LegacyMap<ContractAddress, u256>,
+        frozen_addresses: Map<ContractAddress, bool>,
+        frozen_tokens: Map<ContractAddress, u256>,
         // Engine addresses
         snapshot_engine: ContractAddress,
         document_engine: ContractAddress,
@@ -256,14 +261,14 @@ mod AllowlistCMTAT {
         self.deactivated.write(false);
         self.allowlist_enabled.write(false);
         self.trusted_forwarder.write(forwarder_irrevocable);
-        self.snapshot_engine.write(starknet::contract_address_const::<0>());
-        self.document_engine.write(starknet::contract_address_const::<0>());
+        self.snapshot_engine.write(Zero::zero());
+        self.document_engine.write(Zero::zero());
 
         // Add recipient to allowlist if initial supply is provided
         if initial_supply > 0 {
             self.allowlist.write(recipient, true);
             self.emit(AddressAddedToAllowlist { account: recipient, added_by: admin });
-            self.erc20._mint(recipient, initial_supply);
+            self.erc20.mint(recipient, initial_supply);
         }
     }
 
@@ -357,14 +362,14 @@ mod AllowlistCMTAT {
 
         // ============ Version ============
         fn version(self: @ContractState) -> ByteArray {
-            "2.0.0"
+            "0.1.0"
         }
 
         // ============ Minting Functions ============
         fn mint(ref self: ContractState, to: ContractAddress, value: u256) -> bool {
             self.access_control.assert_only_role(MINTER_ROLE);
             assert(!self.paused(), 'Contract is paused');
-            self.erc20._mint(to, value);
+            self.erc20.mint(to, value);
             self.emit(Mint { to, value });
             true
         }
@@ -381,7 +386,7 @@ mod AllowlistCMTAT {
                 }
                 let to = *tos.at(i);
                 let value = *values.at(i);
-                self.erc20._mint(to, value);
+                self.erc20.mint(to, value);
                 self.emit(Mint { to, value });
                 i += 1;
             };
@@ -391,9 +396,9 @@ mod AllowlistCMTAT {
         fn burn_and_mint(ref self: ContractState, from: ContractAddress, to: ContractAddress, value: u256) -> bool {
             self.access_control.assert_only_role(MINTER_ROLE);
             assert(!self.paused(), 'Contract is paused');
-            self.erc20._burn(from, value);
+            self.erc20.burn(from, value);
             self.emit(Burn { from, value });
-            self.erc20._mint(to, value);
+            self.erc20.mint(to, value);
             self.emit(Mint { to, value });
             true
         }
@@ -402,7 +407,7 @@ mod AllowlistCMTAT {
         fn burn(ref self: ContractState, value: u256) -> bool {
             let from = get_caller_address();
             assert(!self.paused(), 'Contract is paused');
-            self.erc20._burn(from, value);
+            self.erc20.burn(from, value);
             self.emit(Burn { from, value });
             true
         }
@@ -411,7 +416,7 @@ mod AllowlistCMTAT {
             assert(!self.paused(), 'Contract is paused');
             let spender = get_caller_address();
             self.erc20._spend_allowance(from, spender, value);
-            self.erc20._burn(from, value);
+            self.erc20.burn(from, value);
             self.emit(Burn { from, value });
             true
         }
@@ -428,7 +433,7 @@ mod AllowlistCMTAT {
                 }
                 let from = *accounts.at(i);
                 let value = *values.at(i);
-                self.erc20._burn(from, value);
+                self.erc20.burn(from, value);
                 self.emit(Burn { from, value });
                 i += 1;
             };

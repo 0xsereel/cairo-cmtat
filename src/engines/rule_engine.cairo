@@ -33,9 +33,15 @@ pub trait IRuleEngine<TContractState> {
 /// Simple Whitelist Rule Engine Implementation
 #[starknet::contract]
 mod WhitelistRuleEngine {
+    use core::num::traits::{Zero};
     use super::IRuleEngine;
     use openzeppelin::access::ownable::OwnableComponent;
-    use starknet::{ContractAddress, get_caller_address};
+    use starknet::{ContractAddress};
+    use starknet::storage::{
+        Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
+        StoragePointerWriteAccess,
+    };
+
 
     component!(path: OwnableComponent, storage: ownable, event: OwnableEvent);
 
@@ -47,7 +53,7 @@ mod WhitelistRuleEngine {
     struct Storage {
         #[substorage(v0)]
         ownable: OwnableComponent::Storage,
-        whitelisted: LegacyMap<ContractAddress, bool>,
+        whitelisted: Map<ContractAddress, bool>,
         max_balance: u256,
         token_contract: ContractAddress,
     }
@@ -104,7 +110,7 @@ mod WhitelistRuleEngine {
             to: ContractAddress,
             amount: u256
         ) -> u8 {
-            let zero_address = starknet::contract_address_const::<0>();
+            let zero_address = Zero::zero();
             
             // Allow minting (from zero address)
             if from == zero_address {
@@ -171,7 +177,7 @@ mod WhitelistRuleEngine {
     impl WhitelistManagement of super::IWhitelistManagement<ContractState> {
         fn add_to_whitelist(ref self: ContractState, address: ContractAddress) {
             self.ownable.assert_only_owner();
-            let zero_address = starknet::contract_address_const::<0>();
+            let zero_address = Zero::zero();
             assert(address != zero_address, Errors::ZERO_ADDRESS);
             
             self.whitelisted.write(address, true);
@@ -188,7 +194,7 @@ mod WhitelistRuleEngine {
         fn batch_add_to_whitelist(ref self: ContractState, addresses: Array<ContractAddress>) {
             self.ownable.assert_only_owner();
             
-            let zero_address = starknet::contract_address_const::<0>();
+            let zero_address = Zero::zero();
             let mut i = 0;
             loop {
                 if i >= addresses.len() {
