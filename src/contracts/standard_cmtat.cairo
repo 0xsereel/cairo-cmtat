@@ -57,8 +57,6 @@ mod StandardCMTAT {
         // Engine addresses
         snapshot_engine: ContractAddress,
         document_engine: ContractAddress,
-        // Trusted forwarder for meta-transactions
-        trusted_forwarder: ContractAddress,
     }
 
     #[derive(Drop, Serde, PartialEq)]
@@ -169,7 +167,6 @@ mod StandardCMTAT {
     #[constructor]
     fn constructor(
         ref self: ContractState,
-        forwarder_irrevocable: ContractAddress,
         admin: ContractAddress,
         name: ByteArray,
         symbol: ByteArray,
@@ -194,7 +191,6 @@ mod StandardCMTAT {
         self.token_id.write("");
         self.paused.write(false);
         self.deactivated.write(false);
-        self.trusted_forwarder.write(forwarder_irrevocable);
         self.snapshot_engine.write(Zero::zero());
         self.document_engine.write(Zero::zero());
 
@@ -542,11 +538,6 @@ mod StandardCMTAT {
             self.document_engine.read()
         }
 
-        // ============ Meta-Transaction Support ============
-        fn is_trusted_forwarder(self: @ContractState, forwarder: ContractAddress) -> bool {
-            forwarder == self.trusted_forwarder.read()
-        }
-
         // ============ Utility Functions ============
         fn token_type(self: @ContractState) -> ByteArray {
             "Standard CMTAT"
@@ -643,9 +634,6 @@ trait IStandardCMTAT<TContractState> {
     fn snapshot_engine(self: @TContractState) -> ContractAddress;
     fn set_document_engine(ref self: TContractState, document_engine_: ContractAddress) -> bool;
     fn document_engine(self: @TContractState) -> ContractAddress;
-    
-    // Meta-transactions
-    fn is_trusted_forwarder(self: @TContractState, forwarder: ContractAddress) -> bool;
     
     // Utility
     fn token_type(self: @TContractState) -> ByteArray;

@@ -14,7 +14,6 @@ This implementation is based on the [Solidity version](https://github.com/CMTA/C
 - **Role-Based Access Control** with role getter functions
 - **Batch Operations** for efficient multi-address operations
 - **Transfer Validation** (ERC-1404 compatible)
-- **Meta-Transaction Support** (Allowlist & Standard modules)
 - **OpenZeppelin Components** for security and reliability
 
 ## Quick Start
@@ -75,7 +74,6 @@ constructor(
 **Constructor:**
 ```cairo
 constructor(
-    forwarder_irrevocable: ContractAddress,  // For meta-transactions
     admin: ContractAddress,
     name: ByteArray,
     symbol: ByteArray,
@@ -89,7 +87,6 @@ constructor(
 -  Partial token freezing (freeze_partial_tokens, unfreeze_partial_tokens)
 - Active balance queries (get_active_balance_of)
 - Engine management (snapshot_engine, document_engine)
-- Meta-transaction support (is_trusted_forwarder)
 - 9 Role constants (includes ERC20ENFORCER, SNAPSHOOTER, DOCUMENT, EXTRA_INFORMATION)
 
 **Use Cases:** Regulated tokens with whitelist requirements, KYC/AML compliance
@@ -128,7 +125,6 @@ constructor(
 **Constructor:**
 ```cairo
 constructor(
-    forwarder_irrevocable: ContractAddress,  // For meta-transactions
     admin: ContractAddress,
     name: ByteArray,
     symbol: ByteArray,
@@ -247,7 +243,6 @@ fn message_for_transfer_restriction(self: @ContractState, restriction_code: Stan
 | **Allowlist** | ❌ | ✅ | ❌ | ❌ |
 | **Debt Management** | ❌ | ❌ | ✅ | ❌ |
 | **Transfer Validation** | ❌ | ❌ | ❌ | ✅ |
-| **Meta-Transactions** | ❌ | ✅ | ❌ | ✅ |
 | **Engine Integration** | ❌ | ✅ | ✅ | ✅ |
 | **Role Count** | 4 | 9 | 10 | 9 |
 
@@ -282,7 +277,6 @@ cairo-cmtat/
 ```cairo
 // Deploy Allowlist CMTAT for KYC/AML compliance
 let allowlist_cmtat = deploy_allowlist_cmtat(
-    forwarder,
     admin,
     "Regulated Security Token",
     "RST",
