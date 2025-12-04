@@ -37,7 +37,6 @@ mod StandardCMTAT {
     const SNAPSHOOTER_ROLE: felt252 = 'SNAPSHOOTER';
     const DOCUMENT_ROLE: felt252 = 'DOCUMENT';
     const EXTRA_INFORMATION_ROLE: felt252 = 'EXTRA_INFORMATION';
-    const CROSS_CHAIN_ROLE: felt252 = 'CROSS_CHAIN';
 
     #[storage]
     struct Storage {
@@ -189,7 +188,6 @@ mod StandardCMTAT {
         self.access_control._grant_role(SNAPSHOOTER_ROLE, admin);
         self.access_control._grant_role(DOCUMENT_ROLE, admin);
         self.access_control._grant_role(EXTRA_INFORMATION_ROLE, admin);
-        self.access_control._grant_role(CROSS_CHAIN_ROLE, admin);
 
         self.terms.write("");
         self.information.write("");
@@ -295,10 +293,6 @@ mod StandardCMTAT {
             EXTRA_INFORMATION_ROLE
         }
 
-        fn get_cross_chain_role(self: @ContractState) -> felt252 {
-            CROSS_CHAIN_ROLE
-        }
-
         // ============ Version ============
         fn version(self: @ContractState) -> ByteArray {
             "0.1.0"
@@ -329,15 +323,6 @@ mod StandardCMTAT {
                 self.emit(Mint { to, value });
                 i += 1;
             };
-            true
-        }
-
-        fn crosschain_mint(ref self: ContractState, to: ContractAddress, value: u256) -> bool {
-            self.access_control.assert_only_role(CROSS_CHAIN_ROLE);
-            assert(!self.paused(), 'Contract is paused');
-            assert(!self.deactivated(), 'Contract is deactivated');
-            self.erc20.mint(to, value);
-            self.emit(Mint { to, value });
             true
         }
 
@@ -386,15 +371,6 @@ mod StandardCMTAT {
                 self.emit(Burn { from, value });
                 i += 1;
             };
-            true
-        }
-
-        fn crosschain_burn(ref self: ContractState, from: ContractAddress, value: u256) -> bool {
-            self.access_control.assert_only_role(CROSS_CHAIN_ROLE);
-            assert(!self.paused(), 'Contract is paused');
-            assert(!self.deactivated(), 'Contract is deactivated');
-            self.erc20.burn(from, value);
-            self.emit(Burn { from, value });
             true
         }
 
@@ -628,7 +604,6 @@ trait IStandardCMTAT<TContractState> {
     fn get_snapshooter_role(self: @TContractState) -> felt252;
     fn get_document_role(self: @TContractState) -> felt252;
     fn get_extra_information_role(self: @TContractState) -> felt252;
-    fn get_cross_chain_role(self: @TContractState) -> felt252;
     
     // Version
     fn version(self: @TContractState) -> ByteArray;
@@ -636,14 +611,12 @@ trait IStandardCMTAT<TContractState> {
     // Minting
     fn mint(ref self: TContractState, to: ContractAddress, value: u256) -> bool;
     fn batch_mint(ref self: TContractState, tos: Span<ContractAddress>, values: Span<u256>) -> bool;
-    fn crosschain_mint(ref self: TContractState, to: ContractAddress, value: u256) -> bool;
     fn burn_and_mint(ref self: TContractState, from: ContractAddress, to: ContractAddress, value: u256) -> bool;
     
     // Burning
     fn burn(ref self: TContractState, value: u256) -> bool;
     fn burn_from(ref self: TContractState, from: ContractAddress, value: u256) -> bool;
     fn batch_burn(ref self: TContractState, accounts: Span<ContractAddress>, values: Span<u256>) -> bool;
-    fn crosschain_burn(ref self: TContractState, from: ContractAddress, value: u256) -> bool;
     
     // Pause
     fn paused(self: @TContractState) -> bool;
