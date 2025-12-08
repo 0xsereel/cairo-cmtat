@@ -15,13 +15,11 @@ echo ""
 # Configuration
 NETWORK="${NETWORK:-sepolia}"
 ADMIN_ADDR="${ADMIN_ADDR:-0x04be1751352810aa8ad733c0f51d952ec4f96efee175ab0cb0da2d2ea537f50}"
-FORWARDER="${FORWARDER:-0x0000000000000000000000000000000000000000000000000000000000000000}"
 INITIAL_SUPPLY="${INITIAL_SUPPLY:-1000000}"  # 1M tokens (will be multiplied by 10^18)
 
 echo "Configuration:"
 echo "  Network: $NETWORK"
 echo "  Admin: $ADMIN_ADDR"
-echo "  Forwarder: $FORWARDER"
 echo "  Initial Supply: $INITIAL_SUPPLY tokens"
 echo ""
 
@@ -31,7 +29,7 @@ scarb build
 echo "✅ Build complete"
 echo ""
 
-# Deploy Light CMTAT (no engines, no forwarder)
+# Deploy Light CMTAT (minimal feature set)
 echo "═══════════════════════════════════════════════════════════"
 echo "🪶 Deploying Light CMTAT"
 echo "═══════════════════════════════════════════════════════════"
@@ -72,12 +70,11 @@ else
 fi
 echo ""
 
-# Deploy Allowlist CMTAT (with forwarder, engines set after deployment)
+# Deploy Allowlist CMTAT (engines set after deployment)
 echo "═══════════════════════════════════════════════════════════"
 echo "✅ Deploying Allowlist CMTAT"
 echo "═══════════════════════════════════════════════════════════"
 echo "Constructor parameters:"
-echo "  - forwarder_irrevocable: $FORWARDER"
 echo "  - admin: $ADMIN_ADDR"
 echo "  - name: 'Allowlist CMTAT'"
 echo "  - symbol: 'ACMTAT'"
@@ -98,7 +95,6 @@ else
       --account ~/.starkli-wallets/deployer/account.json \
       --keystore ~/.starkli-wallets/deployer/keystore.json \
       --rpc https://starknet-sepolia.public.blastapi.io/rpc/v0.7 \
-      $FORWARDER \
       $ADMIN_ADDR \
       0 0x416c6c6f776c69737420434d544154 16 \
       0 0x41434d544154 7 \
@@ -114,7 +110,7 @@ else
 fi
 echo ""
 
-# Deploy Debt CMTAT (no forwarder, engines set after deployment)
+# Deploy Debt CMTAT (debt securities support)
 echo "═══════════════════════════════════════════════════════════"
 echo "💰 Deploying Debt CMTAT"
 echo "═══════════════════════════════════════════════════════════"
@@ -154,12 +150,11 @@ else
 fi
 echo ""
 
-# Deploy Standard CMTAT (with forwarder, engines set after deployment)
+# Deploy Standard CMTAT (engines set after deployment)
 echo "═══════════════════════════════════════════════════════════"
 echo "⭐ Deploying Standard CMTAT"
 echo "═══════════════════════════════════════════════════════════"
 echo "Constructor parameters:"
-echo "  - forwarder_irrevocable: $FORWARDER"
 echo "  - admin: $ADMIN_ADDR"
 echo "  - name: 'Standard CMTAT'"
 echo "  - symbol: 'SCMTAT'"
@@ -180,7 +175,6 @@ else
       --account ~/.starkli-wallets/deployer/account.json \
       --keystore ~/.starkli-wallets/deployer/keystore.json \
       --rpc https://starknet-sepolia.public.blastapi.io/rpc/v0.7 \
-      $FORWARDER \
       $ADMIN_ADDR \
       0 0x5374616e6461726420434d544154 14 \
       0 0x53434d544154 7 \
@@ -219,7 +213,6 @@ cat > .env << EOF
 # Network Configuration
 NETWORK="$NETWORK"
 ADMIN_ADDR="$ADMIN_ADDR"
-FORWARDER="$FORWARDER"
 
 # CMTAT Contract Addresses
 LIGHT_CMTAT="$LIGHT_CMTAT"
@@ -290,7 +283,6 @@ else
         echo ""
         echo "# Allowlist CMTAT:"
         echo "starkli deploy $ALLOWLIST_CLASS_HASH \\"
-        echo "  $FORWARDER \\"
         echo "  $ADMIN_ADDR \\"
         echo "  0 0x416c6c6f776c69737420434d544154 16 \\"
         echo "  0 0x41434d544154 7 \\"
@@ -311,7 +303,6 @@ else
         echo ""
         echo "# Standard CMTAT:"
         echo "starkli deploy $STANDARD_CLASS_HASH \\"
-        echo "  $FORWARDER \\"
         echo "  $ADMIN_ADDR \\"
         echo "  0 0x5374616e6461726420434d544154 14 \\"
         echo "  0 0x53434d544154 7 \\"

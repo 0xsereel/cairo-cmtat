@@ -332,7 +332,7 @@ mod DebtCMTAT {
         // ============ Minting Functions ============
         fn mint(ref self: ContractState, to: ContractAddress, value: u256) -> bool {
             self.access_control.assert_only_role(MINTER_ROLE);
-            assert(!self.paused(), 'Contract is paused');
+            assert(!self.deactivated(), 'Contract is deactivated');
             self.erc20.mint(to, value);
             self.emit(Mint { to, value });
             true
@@ -340,7 +340,7 @@ mod DebtCMTAT {
 
         fn batch_mint(ref self: ContractState, tos: Span<ContractAddress>, values: Span<u256>) -> bool {
             self.access_control.assert_only_role(MINTER_ROLE);
-            assert(!self.paused(), 'Contract is paused');
+            assert(!self.deactivated(), 'Contract is deactivated');
             assert(tos.len() == values.len(), 'Arrays length mismatch');
             
             let mut i: u32 = 0;
@@ -359,7 +359,7 @@ mod DebtCMTAT {
 
         fn burn_and_mint(ref self: ContractState, from: ContractAddress, to: ContractAddress, value: u256) -> bool {
             self.access_control.assert_only_role(MINTER_ROLE);
-            assert(!self.paused(), 'Contract is paused');
+            assert(!self.deactivated(), 'Contract is deactivated');
             
             // Validate addresses are not frozen
             assert(!self.is_frozen(from), 'From address is frozen');
@@ -378,8 +378,9 @@ mod DebtCMTAT {
 
         // ============ Burning Functions ============
         fn burn(ref self: ContractState, value: u256) -> bool {
+            self.access_control.assert_only_role(BURNER_ROLE);
             let from = get_caller_address();
-            assert(!self.paused(), 'Contract is paused');
+            assert(!self.deactivated(), 'Contract is deactivated');
             assert(!self.is_frozen(from), 'Sender frozen');
             self.erc20.burn(from, value);
             self.emit(Burn { from, value });
@@ -387,7 +388,7 @@ mod DebtCMTAT {
         }
 
         fn burn_from(ref self: ContractState, from: ContractAddress, value: u256) -> bool {
-            assert(!self.paused(), 'Contract is paused');
+            assert(!self.deactivated(), 'Contract is deactivated');
             assert(!self.is_frozen(from), 'Sender frozen');
             let spender = get_caller_address();
             self.erc20._spend_allowance(from, spender, value);
@@ -398,7 +399,7 @@ mod DebtCMTAT {
 
         fn batch_burn(ref self: ContractState, accounts: Span<ContractAddress>, values: Span<u256>) -> bool {
             self.access_control.assert_only_role(BURNER_ROLE);
-            assert(!self.paused(), 'Contract is paused');
+            assert(!self.deactivated(), 'Contract is deactivated');
             assert(accounts.len() == values.len(), 'Arrays length mismatch');
             
             let mut i: u32 = 0;

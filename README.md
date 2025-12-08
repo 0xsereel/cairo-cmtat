@@ -13,9 +13,7 @@ This implementation is based on the [Solidity version](https://github.com/CMTA/C
 -  **ERC20 Compliance** with regulatory extensions
 - **Role-Based Access Control** with role getter functions
 - **Batch Operations** for efficient multi-address operations
-- **Cross-Chain Support** (Standard module)
 - **Transfer Validation** (ERC-1404 compatible)
-- **Meta-Transaction Support** (Allowlist & Standard modules)
 - **OpenZeppelin Components** for security and reliability
 
 ## Quick Start
@@ -76,7 +74,6 @@ constructor(
 **Constructor:**
 ```cairo
 constructor(
-    forwarder_irrevocable: ContractAddress,  // For meta-transactions
     admin: ContractAddress,
     name: ByteArray,
     symbol: ByteArray,
@@ -90,7 +87,6 @@ constructor(
 -  Partial token freezing (freeze_partial_tokens, unfreeze_partial_tokens)
 - Active balance queries (get_active_balance_of)
 - Engine management (snapshot_engine, document_engine)
-- Meta-transaction support (is_trusted_forwarder)
 - 9 Role constants (includes ERC20ENFORCER, SNAPSHOOTER, DOCUMENT, EXTRA_INFORMATION)
 
 **Use Cases:** Regulated tokens with whitelist requirements, KYC/AML compliance
@@ -124,12 +120,11 @@ constructor(
 ---
 
 ### Standard CMTAT
-**Full feature set with cross-chain support**
+**Full feature set with transfer validation**
 
 **Constructor:**
 ```cairo
 constructor(
-    forwarder_irrevocable: ContractAddress,  // For meta-transactions
     admin: ContractAddress,
     name: ByteArray,
     symbol: ByteArray,
@@ -139,13 +134,12 @@ constructor(
 ```
 
 **Advanced Features:**
-- Cross-chain operations (crosschain_mint, crosschain_burn)
 - Transfer validation (restriction_code, message_for_transfer_restriction)
 - ERC-1404 compliance
 -  All core CMTAT features
-- 10 Role constants (includes CROSS_CHAIN_ROLE)
+- 9 Role constants
 
-**Use Cases:** Multi-chain deployments, advanced compliance, institutional securities
+**Use Cases:** Advanced compliance, institutional securities with transfer validation
 
 ---
 
@@ -224,8 +218,6 @@ fn flag_default(ref self: ContractState) -> bool
 
 **Standard Module:**
 ```cairo
-fn crosschain_mint(ref self: ContractState, to: ContractAddress, value: u256) -> bool
-fn crosschain_burn(ref self: ContractState, from: ContractAddress, value: u256) -> bool
 fn restriction_code(self: @ContractState, from: ContractAddress, to: ContractAddress, value: u256) -> StandardCMTAT::RESTRICTION_CODE
 fn message_for_transfer_restriction(self: @ContractState, restriction_code: StandardCMTAT::RESTRICTION_CODE) -> ByteArray
 ```
@@ -250,11 +242,9 @@ fn message_for_transfer_restriction(self: @ContractState, restriction_code: Stan
 | **Information Management** | ✅ | ✅ | ✅ | ✅ |
 | **Allowlist** | ❌ | ✅ | ❌ | ❌ |
 | **Debt Management** | ❌ | ❌ | ✅ | ❌ |
-| **Cross-Chain** | ❌ | ❌ | ❌ | ✅ |
 | **Transfer Validation** | ❌ | ❌ | ❌ | ✅ |
-| **Meta-Transactions** | ❌ | ✅ | ❌ | ✅ |
 | **Engine Integration** | ❌ | ✅ | ✅ | ✅ |
-| **Role Count** | 4 | 9 | 10 | 10 |
+| **Role Count** | 4 | 9 | 10 | 9 |
 
 ---
 
@@ -287,7 +277,6 @@ cairo-cmtat/
 ```cairo
 // Deploy Allowlist CMTAT for KYC/AML compliance
 let allowlist_cmtat = deploy_allowlist_cmtat(
-    forwarder,
     admin,
     "Regulated Security Token",
     "RST",
@@ -323,25 +312,6 @@ bond_token.set_credit_events("Investment Grade BBB+");
 bond_token.set_debt_engine(debt_calculation_engine);
 ```
 
-### Multi-Chain Security Token
-```cairo
-// Deploy Standard CMTAT with cross-chain support
-let standard_cmtat = deploy_standard_cmtat(
-    forwarder,
-    admin,
-    "Global Security Token",
-    "GST",
-    5000000 * 10^18,
-    treasury
-);
-
-// Enable cross-chain operations
-standard_cmtat.grant_role(CROSS_CHAIN_ROLE, bridge_operator);
-
-// Bridge tokens to another chain
-standard_cmtat.crosschain_burn(user, 1000 * 10^18);
-```
-
 ---
 
 ## Security Features
@@ -357,7 +327,6 @@ standard_cmtat.crosschain_burn(user, 1000 * 10^18);
 - **DOCUMENT_ROLE**: Can manage documents
 - **EXTRA_INFORMATION_ROLE**: Can update token metadata
 - **DEBT_ROLE**: Can manage debt parameters
-- **CROSS_CHAIN_ROLE**: Can execute cross-chain operations
 
 ### Transfer Restrictions
 All modules implement transfer restrictions via ERC20 hooks:

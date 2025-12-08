@@ -37,7 +37,6 @@ mod StandardCMTAT {
     const SNAPSHOOTER_ROLE: felt252 = 'SNAPSHOOTER';
     const DOCUMENT_ROLE: felt252 = 'DOCUMENT';
     const EXTRA_INFORMATION_ROLE: felt252 = 'EXTRA_INFORMATION';
-    const CROSS_CHAIN_ROLE: felt252 = 'CROSS_CHAIN';
 
     #[storage]
     struct Storage {
@@ -58,8 +57,6 @@ mod StandardCMTAT {
         // Engine addresses
         snapshot_engine: ContractAddress,
         document_engine: ContractAddress,
-        // Trusted forwarder for meta-transactions
-        trusted_forwarder: ContractAddress,
     }
 
     #[derive(Drop, Serde, PartialEq)]
@@ -170,7 +167,6 @@ mod StandardCMTAT {
     #[constructor]
     fn constructor(
         ref self: ContractState,
-        forwarder_irrevocable: ContractAddress,
         admin: ContractAddress,
         name: ByteArray,
         symbol: ByteArray,
@@ -189,14 +185,12 @@ mod StandardCMTAT {
         self.access_control._grant_role(SNAPSHOOTER_ROLE, admin);
         self.access_control._grant_role(DOCUMENT_ROLE, admin);
         self.access_control._grant_role(EXTRA_INFORMATION_ROLE, admin);
-        self.access_control._grant_role(CROSS_CHAIN_ROLE, admin);
 
         self.terms.write("");
         self.information.write("");
         self.token_id.write("");
         self.paused.write(false);
         self.deactivated.write(false);
-        self.trusted_forwarder.write(forwarder_irrevocable);
         self.snapshot_engine.write(Zero::zero());
         self.document_engine.write(Zero::zero());
 
@@ -295,10 +289,6 @@ mod StandardCMTAT {
             EXTRA_INFORMATION_ROLE
         }
 
-        fn get_cross_chain_role(self: @ContractState) -> felt252 {
-            CROSS_CHAIN_ROLE
-        }
-
         // ============ Version ============
         fn version(self: @ContractState) -> ByteArray {
             "0.1.0"
@@ -307,7 +297,7 @@ mod StandardCMTAT {
         // ============ Minting Functions ============
         fn mint(ref self: ContractState, to: ContractAddress, value: u256) -> bool {
             self.access_control.assert_only_role(MINTER_ROLE);
-            assert(!self.paused(), 'Contract is paused');
+            assert(!self.deactivated(), 'Contract is deactivated');
             self.erc20.mint(to, value);
             self.emit(Mint { to, value });
             true
@@ -315,7 +305,7 @@ mod StandardCMTAT {
 
         fn batch_mint(ref self: ContractState, tos: Span<ContractAddress>, values: Span<u256>) -> bool {
             self.access_control.assert_only_role(MINTER_ROLE);
-            assert(!self.paused(), 'Contract is paused');
+            assert(!self.deactivated(), 'Contract is deactivated');
             assert(tos.len() == values.len(), 'Arrays length mismatch');
             
             let mut i: u32 = 0;
@@ -332,17 +322,9 @@ mod StandardCMTAT {
             true
         }
 
-        fn crosschain_mint(ref self: ContractState, to: ContractAddress, value: u256) -> bool {
-            self.access_control.assert_only_role(CROSS_CHAIN_ROLE);
-            assert(!self.paused(), 'Contract is paused');
-            self.erc20.mint(to, value);
-            self.emit(Mint { to, value });
-            true
-        }
-
         fn burn_and_mint(ref self: ContractState, from: ContractAddress, to: ContractAddress, value: u256) -> bool {
             self.access_control.assert_only_role(MINTER_ROLE);
-            assert(!self.paused(), 'Contract is paused');
+            assert(!self.deactivated(), 'Contract is deactivated');
             self.erc20.burn(from, value);
             self.emit(Burn { from, value });
             self.erc20.mint(to, value);
@@ -352,15 +334,16 @@ mod StandardCMTAT {
 
         // ============ Burning Functions ============
         fn burn(ref self: ContractState, value: u256) -> bool {
+            self.access_control.assert_only_role(BURNER_ROLE);
             let from = get_caller_address();
-            assert(!self.paused(), 'Contract is paused');
+            assert(!self.deactivated(), 'Contract is deactivated');
             self.erc20.burn(from, value);
             self.emit(Burn { from, value });
             true
         }
 
         fn burn_from(ref self: ContractState, from: ContractAddress, value: u256) -> bool {
-            assert(!self.paused(), 'Contract is paused');
+            assert(!self.deactivated(), 'Contract is deactivated');
             let spender = get_caller_address();
             self.erc20._spend_allowance(from, spender, value);
             self.erc20.burn(from, value);
@@ -370,7 +353,7 @@ mod StandardCMTAT {
 
         fn batch_burn(ref self: ContractState, accounts: Span<ContractAddress>, values: Span<u256>) -> bool {
             self.access_control.assert_only_role(BURNER_ROLE);
-            assert(!self.paused(), 'Contract is paused');
+            assert(!self.deactivated(), 'Contract is deactivated');
             assert(accounts.len() == values.len(), 'Arrays length mismatch');
             
             let mut i: u32 = 0;
@@ -384,14 +367,6 @@ mod StandardCMTAT {
                 self.emit(Burn { from, value });
                 i += 1;
             };
-            true
-        }
-
-        fn crosschain_burn(ref self: ContractState, from: ContractAddress, value: u256) -> bool {
-            self.access_control.assert_only_role(CROSS_CHAIN_ROLE);
-            assert(!self.paused(), 'Contract is paused');
-            self.erc20.burn(from, value);
-            self.emit(Burn { from, value });
             true
         }
 
@@ -563,11 +538,6 @@ mod StandardCMTAT {
             self.document_engine.read()
         }
 
-        // ============ Meta-Transaction Support ============
-        fn is_trusted_forwarder(self: @ContractState, forwarder: ContractAddress) -> bool {
-            forwarder == self.trusted_forwarder.read()
-        }
-
         // ============ Utility Functions ============
         fn token_type(self: @ContractState) -> ByteArray {
             "Standard CMTAT"
@@ -625,7 +595,6 @@ trait IStandardCMTAT<TContractState> {
     fn get_snapshooter_role(self: @TContractState) -> felt252;
     fn get_document_role(self: @TContractState) -> felt252;
     fn get_extra_information_role(self: @TContractState) -> felt252;
-    fn get_cross_chain_role(self: @TContractState) -> felt252;
     
     // Version
     fn version(self: @TContractState) -> ByteArray;
@@ -633,14 +602,12 @@ trait IStandardCMTAT<TContractState> {
     // Minting
     fn mint(ref self: TContractState, to: ContractAddress, value: u256) -> bool;
     fn batch_mint(ref self: TContractState, tos: Span<ContractAddress>, values: Span<u256>) -> bool;
-    fn crosschain_mint(ref self: TContractState, to: ContractAddress, value: u256) -> bool;
     fn burn_and_mint(ref self: TContractState, from: ContractAddress, to: ContractAddress, value: u256) -> bool;
     
     // Burning
     fn burn(ref self: TContractState, value: u256) -> bool;
     fn burn_from(ref self: TContractState, from: ContractAddress, value: u256) -> bool;
     fn batch_burn(ref self: TContractState, accounts: Span<ContractAddress>, values: Span<u256>) -> bool;
-    fn crosschain_burn(ref self: TContractState, from: ContractAddress, value: u256) -> bool;
     
     // Pause
     fn paused(self: @TContractState) -> bool;
@@ -667,9 +634,6 @@ trait IStandardCMTAT<TContractState> {
     fn snapshot_engine(self: @TContractState) -> ContractAddress;
     fn set_document_engine(ref self: TContractState, document_engine_: ContractAddress) -> bool;
     fn document_engine(self: @TContractState) -> ContractAddress;
-    
-    // Meta-transactions
-    fn is_trusted_forwarder(self: @TContractState, forwarder: ContractAddress) -> bool;
     
     // Utility
     fn token_type(self: @TContractState) -> ByteArray;

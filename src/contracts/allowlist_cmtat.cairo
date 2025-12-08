@@ -96,8 +96,6 @@ mod AllowlistCMTAT {
         // Engine addresses
         snapshot_engine: ContractAddress,
         document_engine: ContractAddress,
-        // Trusted forwarder for meta-transactions
-        trusted_forwarder: ContractAddress,
     }
 
     #[event]
@@ -233,7 +231,6 @@ mod AllowlistCMTAT {
     #[constructor]
     fn constructor(
         ref self: ContractState,
-        forwarder_irrevocable: ContractAddress,
         admin: ContractAddress,
         name: ByteArray,
         symbol: ByteArray,
@@ -260,7 +257,6 @@ mod AllowlistCMTAT {
         self.paused.write(false);
         self.deactivated.write(false);
         self.allowlist_enabled.write(false);
-        self.trusted_forwarder.write(forwarder_irrevocable);
         self.snapshot_engine.write(Zero::zero());
         self.document_engine.write(Zero::zero());
 
@@ -368,7 +364,7 @@ mod AllowlistCMTAT {
         // ============ Minting Functions ============
         fn mint(ref self: ContractState, to: ContractAddress, value: u256) -> bool {
             self.access_control.assert_only_role(MINTER_ROLE);
-            assert(!self.paused(), 'Contract is paused');
+            assert(!self.deactivated(), 'Contract is deactivated');
             self.erc20.mint(to, value);
             self.emit(Mint { to, value });
             true
@@ -376,7 +372,7 @@ mod AllowlistCMTAT {
 
         fn batch_mint(ref self: ContractState, tos: Span<ContractAddress>, values: Span<u256>) -> bool {
             self.access_control.assert_only_role(MINTER_ROLE);
-            assert(!self.paused(), 'Contract is paused');
+            assert(!self.deactivated(), 'Contract is deactivated');
             assert(tos.len() == values.len(), 'Arrays length mismatch');
             
             let mut i: u32 = 0;
@@ -395,7 +391,7 @@ mod AllowlistCMTAT {
 
         fn burn_and_mint(ref self: ContractState, from: ContractAddress, to: ContractAddress, value: u256) -> bool {
             self.access_control.assert_only_role(MINTER_ROLE);
-            assert(!self.paused(), 'Contract is paused');
+            assert(!self.deactivated(), 'Contract is deactivated');
             self.erc20.burn(from, value);
             self.emit(Burn { from, value });
             self.erc20.mint(to, value);
@@ -405,15 +401,16 @@ mod AllowlistCMTAT {
 
         // ============ Burning Functions ============
         fn burn(ref self: ContractState, value: u256) -> bool {
+            self.access_control.assert_only_role(BURNER_ROLE);
             let from = get_caller_address();
-            assert(!self.paused(), 'Contract is paused');
+            assert(!self.deactivated(), 'Contract is deactivated');
             self.erc20.burn(from, value);
             self.emit(Burn { from, value });
             true
         }
 
         fn burn_from(ref self: ContractState, from: ContractAddress, value: u256) -> bool {
-            assert(!self.paused(), 'Contract is paused');
+            assert(!self.deactivated(), 'Contract is deactivated');
             let spender = get_caller_address();
             self.erc20._spend_allowance(from, spender, value);
             self.erc20.burn(from, value);
@@ -423,7 +420,7 @@ mod AllowlistCMTAT {
 
         fn batch_burn(ref self: ContractState, accounts: Span<ContractAddress>, values: Span<u256>) -> bool {
             self.access_control.assert_only_role(BURNER_ROLE);
-            assert(!self.paused(), 'Contract is paused');
+            assert(!self.deactivated(), 'Contract is deactivated');
             assert(accounts.len() == values.len(), 'Arrays length mismatch');
             
             let mut i: u32 = 0;
@@ -617,11 +614,6 @@ mod AllowlistCMTAT {
             self.document_engine.read()
         }
 
-        // ============ Meta-Transaction Support ============
-        fn is_trusted_forwarder(self: @ContractState, forwarder: ContractAddress) -> bool {
-            forwarder == self.trusted_forwarder.read()
-        }
-
         // ============ Utility Functions ============
         fn token_type(self: @ContractState) -> ByteArray {
             "Allowlist CMTAT"
@@ -694,9 +686,6 @@ trait IAllowlistCMTAT<TContractState> {
     fn snapshot_engine(self: @TContractState) -> ContractAddress;
     fn set_document_engine(ref self: TContractState, document_engine_: ContractAddress) -> bool;
     fn document_engine(self: @TContractState) -> ContractAddress;
-    
-    // Meta-transactions
-    fn is_trusted_forwarder(self: @TContractState, forwarder: ContractAddress) -> bool;
     
     // Utility
     fn token_type(self: @TContractState) -> ByteArray;
