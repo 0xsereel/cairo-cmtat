@@ -28,6 +28,7 @@ mod LightCMTAT {
     impl AccessControlInternalImpl = AccessControlComponent::InternalImpl<ContractState>;
 
     const MINTER_ROLE: felt252 = 'MINTER';
+    const BURNER_ROLE: felt252 = 'BURNER';
     const PAUSER_ROLE: felt252 = 'PAUSER';
     const ENFORCER_ROLE: felt252 = 'ENFORCER';
 
@@ -159,6 +160,7 @@ mod LightCMTAT {
 
         self.access_control._grant_role(DEFAULT_ADMIN_ROLE, admin);
         self.access_control._grant_role(MINTER_ROLE, admin);
+        self.access_control._grant_role(BURNER_ROLE, admin);
         self.access_control._grant_role(PAUSER_ROLE, admin);
         self.access_control._grant_role(ENFORCER_ROLE, admin);
 
@@ -273,7 +275,7 @@ mod LightCMTAT {
 
         // ============ Burning Functions ============
         fn burn(ref self: ContractState, value: u256) -> bool {
-            self.access_control.assert_only_role(DEFAULT_ADMIN_ROLE);
+            self.access_control.assert_only_role(BURNER_ROLE);
             let from = get_caller_address();
             assert(!self.deactivated(), 'Contract is deactivated');
             self.erc20.burn(from, value);
