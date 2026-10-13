@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 // Mock composing ERC20BaseComponent with the CMTATBaseCommon check chain
-// (CommonHooksImpl): pause, address freeze, partial freeze and mint. The
+// (CommonHooksImpl): pause, address freeze, partial freeze, mint and burn. The
 // constructor mints without checks.
 
 #[starknet::contract]
@@ -10,6 +10,7 @@ pub mod ERC20BaseMock {
     use openzeppelin::token::erc20::{ERC20Component, ERC20HooksEmptyImpl};
     use starknet::ContractAddress;
     use crate::components::access::CMTATAccessControlComponent;
+    use crate::components::burn::BurnComponent;
     use crate::components::enforcement::EnforcementComponent;
     use crate::components::erc20_base::ERC20BaseComponent;
     use crate::components::erc20_enforcement::ERC20EnforcementComponent;
@@ -32,6 +33,7 @@ pub mod ERC20BaseMock {
     component!(path: ValidationComponent, storage: validation, event: ValidationEvent);
     component!(path: ERC20BaseComponent, storage: erc20_base, event: ERC20BaseEvent);
     component!(path: MintComponent, storage: mint, event: MintEvent);
+    component!(path: BurnComponent, storage: burn, event: BurnEvent);
 
     // ERC-20
     #[abi(embed_v0)]
@@ -78,6 +80,18 @@ pub mod ERC20BaseMock {
     #[abi(embed_v0)]
     impl ERC5679MintImpl = MintComponent::ERC5679MintImpl<ContractState>;
 
+    // Burn
+    #[abi(embed_v0)]
+    impl ERC3643BurnImpl = BurnComponent::ERC3643BurnImpl<ContractState>;
+    #[abi(embed_v0)]
+    impl ERC5679BurnImpl = BurnComponent::ERC5679BurnImpl<ContractState>;
+    #[abi(embed_v0)]
+    impl BurnBatchImpl = BurnComponent::BurnBatchImpl<ContractState>;
+    #[abi(embed_v0)]
+    impl BurnFromImpl = BurnComponent::BurnFromImpl<ContractState>;
+    #[abi(embed_v0)]
+    impl BurnMintImpl = BurnComponent::BurnMintImpl<ContractState>;
+
     #[storage]
     struct Storage {
         #[substorage(v0)]
@@ -100,6 +114,8 @@ pub mod ERC20BaseMock {
         erc20_base: ERC20BaseComponent::Storage,
         #[substorage(v0)]
         mint: MintComponent::Storage,
+        #[substorage(v0)]
+        burn: BurnComponent::Storage,
     }
 
     #[event]
@@ -125,6 +141,8 @@ pub mod ERC20BaseMock {
         ERC20BaseEvent: ERC20BaseComponent::Event,
         #[flat]
         MintEvent: MintComponent::Event,
+        #[flat]
+        BurnEvent: BurnComponent::Event,
     }
 
     #[constructor]
