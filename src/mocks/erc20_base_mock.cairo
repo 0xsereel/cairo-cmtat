@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Mock composing ERC20BaseComponent with the CMTATBaseCommon check chain
-// (CommonHooksImpl): pause, address freeze, partial freeze, mint and burn. The
-// constructor mints without checks.
+// (CommonHooksImpl): pause, address freeze, partial freeze, mint, burn, token attributes and extra
+// information. The constructor mints without checks.
 
 #[starknet::contract]
 pub mod ERC20BaseMock {
@@ -14,10 +14,13 @@ pub mod ERC20BaseMock {
     use crate::components::enforcement::EnforcementComponent;
     use crate::components::erc20_base::ERC20BaseComponent;
     use crate::components::erc20_enforcement::ERC20EnforcementComponent;
+    use crate::components::extra_information::ExtraInformationComponent;
     use crate::components::hooks::CommonHooksImpl;
     use crate::components::mint::MintComponent;
     use crate::components::pause::PauseComponent;
+    use crate::components::token_attributes::TokenAttributesComponent;
     use crate::components::validation::ValidationComponent;
+    use crate::interfaces::erc1643::DocumentInfo;
 
     component!(path: ERC20Component, storage: erc20, event: ERC20Event);
     component!(path: AccessControlComponent, storage: access_control, event: AccessControlEvent);
@@ -34,6 +37,12 @@ pub mod ERC20BaseMock {
     component!(path: ERC20BaseComponent, storage: erc20_base, event: ERC20BaseEvent);
     component!(path: MintComponent, storage: mint, event: MintEvent);
     component!(path: BurnComponent, storage: burn, event: BurnEvent);
+    component!(
+        path: TokenAttributesComponent, storage: token_attributes, event: TokenAttributesEvent,
+    );
+    component!(
+        path: ExtraInformationComponent, storage: extra_information, event: ExtraInformationEvent,
+    );
 
     // ERC-20
     #[abi(embed_v0)]
@@ -92,6 +101,17 @@ pub mod ERC20BaseMock {
     #[abi(embed_v0)]
     impl BurnMintImpl = BurnComponent::BurnMintImpl<ContractState>;
 
+    // Token attributes and extra information
+    #[abi(embed_v0)]
+    impl ERC3643ERC20BaseImpl =
+        TokenAttributesComponent::ERC3643ERC20BaseImpl<ContractState>;
+    #[abi(embed_v0)]
+    impl ERC3643VersionImpl =
+        TokenAttributesComponent::ERC3643VersionImpl<ContractState>;
+    #[abi(embed_v0)]
+    impl CMTATBaseImpl = ExtraInformationComponent::CMTATBaseImpl<ContractState>;
+    impl ExtraInformationInternalImpl = ExtraInformationComponent::InternalImpl<ContractState>;
+
     #[storage]
     struct Storage {
         #[substorage(v0)]
@@ -116,6 +136,10 @@ pub mod ERC20BaseMock {
         mint: MintComponent::Storage,
         #[substorage(v0)]
         burn: BurnComponent::Storage,
+        #[substorage(v0)]
+        token_attributes: TokenAttributesComponent::Storage,
+        #[substorage(v0)]
+        extra_information: ExtraInformationComponent::Storage,
     }
 
     #[event]
@@ -143,6 +167,10 @@ pub mod ERC20BaseMock {
         MintEvent: MintComponent::Event,
         #[flat]
         BurnEvent: BurnComponent::Event,
+        #[flat]
+        TokenAttributesEvent: TokenAttributesComponent::Event,
+        #[flat]
+        ExtraInformationEvent: ExtraInformationComponent::Event,
     }
 
     #[constructor]
@@ -156,6 +184,13 @@ pub mod ERC20BaseMock {
         self.erc20_base.initializer("Mock", "MCK", decimals);
         self.cmtat_access.initializer(admin);
         self.pause.initializer();
+        self
+            .extra_information
+            .initializer(
+                "TOKEN-ID",
+                DocumentInfo { name: "Terms", uri: "https://terms", document_hash: 0x1234 },
+                "information",
+            );
         self.erc20.mint(recipient, initial_supply);
     }
 }

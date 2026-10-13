@@ -10,10 +10,12 @@ pub mod components {
     pub mod enforcement;
     pub mod erc20_base;
     pub mod erc20_enforcement;
+    pub mod extra_information;
     pub mod forced_burn;
     pub mod hooks;
     pub mod mint;
     pub mod pause;
+    pub mod token_attributes;
     pub mod validation;
 }
 
@@ -21,11 +23,14 @@ pub mod components {
 pub mod interfaces {
     pub mod burn;
     pub mod enforcement;
+    pub mod erc1643;
     pub mod erc20_base;
     pub mod erc20_enforcement;
+    pub mod extra_information;
     pub mod icmtat;
     pub mod mint;
     pub mod pause;
+    pub mod token_attributes;
 }
 
 // CMTAT contract implementations - Production ready contracts

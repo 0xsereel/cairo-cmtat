@@ -28,7 +28,8 @@ pub trait IBurnBatchERC20<TState> {
 pub trait IBurnFromERC20<TState> {
     /// Burns `value` of `account`'s tokens, spending the caller's allowance.
     fn burn_from(ref self: TState, account: ContractAddress, value: u256);
-    /// `burn(value)` in CMTAT: the caller burns its own tokens.
+    /// `burn(value)` in CMTAT: the caller burns its own tokens. Renamed because
+    /// Cairo has no overloading and `burn(account, value)` is the ERC-3643 entry point.
     fn burn_self(ref self: TState, value: u256);
 }
 
