@@ -6,7 +6,7 @@
 // ERC-7551 `TokensFrozen(account, value, data)` (same for `TokensUnfrozen` and the
 // ERC-7943 / ERC-7551 `ForcedTransfer`). Starknet keys events by name only, so each
 // pair is one event here, carrying `data` (empty on the plain entry points) and,
-// for `ForcedTransfer`, the operator.
+// for `ForcedTransfer`, the operator. `Spend` is emitted through ERC20BaseComponent.
 
 #[starknet::component]
 pub mod ERC20EnforcementComponent {
@@ -19,6 +19,8 @@ pub mod ERC20EnforcementComponent {
     use starknet::storage::{Map, StorageMapReadAccess, StorageMapWriteAccess};
     use crate::components::access::CMTATAccessControlComponent;
     use crate::components::access::CMTATAccessControlComponent::InternalImpl as AccessInternalImpl;
+    use crate::components::erc20_base::ERC20BaseComponent;
+    use crate::components::erc20_base::ERC20BaseComponent::InternalImpl as ERC20BaseInternalImpl;
     use crate::errors;
     use crate::interfaces::erc20_enforcement::{
         IERC3643ERC20Enforcement, IERC7551ERC20Enforcement, IERC7943FungibleEnforcement,
@@ -37,7 +39,6 @@ pub mod ERC20EnforcementComponent {
         TokensUnfrozen: TokensUnfrozen,
         Frozen: Frozen,
         ForcedTransfer: ForcedTransfer,
-        Spend: Spend,
     }
 
     /// `value` tokens of `account` were frozen.
@@ -78,22 +79,13 @@ pub mod ERC20EnforcementComponent {
         pub data: Span<felt252>,
     }
 
-    /// `spender` consumed `value` of the allowance granted by `account`.
-    #[derive(Drop, Debug, PartialEq, starknet::Event)]
-    pub struct Spend {
-        #[key]
-        pub account: ContractAddress,
-        #[key]
-        pub spender: ContractAddress,
-        pub value: u256,
-    }
-
     #[embeddable_as(ERC3643ERC20EnforcementImpl)]
     impl ERC3643ERC20Enforcement<
         TContractState,
         +HasComponent<TContractState>,
         +ERC20Component::HasComponent<TContractState>,
         +ERC20Component::ERC20HooksTrait<TContractState>,
+        +ERC20BaseComponent::HasComponent<TContractState>,
         +SRC5Component::HasComponent<TContractState>,
         +AccessControlComponent::HasComponent<TContractState>,
         impl Access: CMTATAccessControlComponent::HasComponent<TContractState>,
@@ -120,6 +112,7 @@ pub mod ERC20EnforcementComponent {
         +HasComponent<TContractState>,
         +ERC20Component::HasComponent<TContractState>,
         +ERC20Component::ERC20HooksTrait<TContractState>,
+        +ERC20BaseComponent::HasComponent<TContractState>,
         +SRC5Component::HasComponent<TContractState>,
         +AccessControlComponent::HasComponent<TContractState>,
         impl Access: CMTATAccessControlComponent::HasComponent<TContractState>,
@@ -169,6 +162,7 @@ pub mod ERC20EnforcementComponent {
         +HasComponent<TContractState>,
         +ERC20Component::HasComponent<TContractState>,
         +ERC20Component::ERC20HooksTrait<TContractState>,
+        +ERC20BaseComponent::HasComponent<TContractState>,
         +SRC5Component::HasComponent<TContractState>,
         +AccessControlComponent::HasComponent<TContractState>,
         impl Access: CMTATAccessControlComponent::HasComponent<TContractState>,
@@ -219,6 +213,7 @@ pub mod ERC20EnforcementComponent {
         +HasComponent<TContractState>,
         impl ERC20: ERC20Component::HasComponent<TContractState>,
         +ERC20Component::ERC20HooksTrait<TContractState>,
+        impl ERC20Base: ERC20BaseComponent::HasComponent<TContractState>,
         +Drop<TContractState>,
     > of InternalTrait<TContractState> {
         fn frozen_tokens(self: @ComponentState<TContractState>, account: ContractAddress) -> u256 {
@@ -337,7 +332,7 @@ pub mod ERC20EnforcementComponent {
                         value
                     };
                     erc20.ERC20_allowances.write((from, to), allowance - spent);
-                    self.emit(Spend { account: from, spender: to, value: spent });
+                    get_dep_component_mut!(ref self, ERC20Base).emit_spend(from, to, spent);
                 }
                 let mut erc20 = get_dep_component_mut!(ref self, ERC20);
                 erc20._transfer(from, to, value);

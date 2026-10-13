@@ -16,6 +16,7 @@ pub mod ERC20EnforcementMock {
     use openzeppelin::token::erc20::{DefaultConfig, ERC20Component, ERC20HooksEmptyImpl};
     use starknet::ContractAddress;
     use crate::components::access::CMTATAccessControlComponent;
+    use crate::components::erc20_base::ERC20BaseComponent;
     use crate::components::erc20_enforcement::ERC20EnforcementComponent;
 
     component!(path: ERC20Component, storage: erc20, event: ERC20Event);
@@ -24,6 +25,7 @@ pub mod ERC20EnforcementMock {
     component!(
         path: CMTATAccessControlComponent, storage: cmtat_access, event: CMTATAccessControlEvent,
     );
+    component!(path: ERC20BaseComponent, storage: erc20_base, event: ERC20BaseEvent);
     component!(
         path: ERC20EnforcementComponent, storage: erc20_enforcement, event: ERC20EnforcementEvent,
     );
@@ -59,6 +61,8 @@ pub mod ERC20EnforcementMock {
         #[substorage(v0)]
         cmtat_access: CMTATAccessControlComponent::Storage,
         #[substorage(v0)]
+        erc20_base: ERC20BaseComponent::Storage,
+        #[substorage(v0)]
         erc20_enforcement: ERC20EnforcementComponent::Storage,
     }
 
@@ -73,6 +77,8 @@ pub mod ERC20EnforcementMock {
         SRC5Event: SRC5Component::Event,
         #[flat]
         CMTATAccessControlEvent: CMTATAccessControlComponent::Event,
+        #[flat]
+        ERC20BaseEvent: ERC20BaseComponent::Event,
         #[flat]
         ERC20EnforcementEvent: ERC20EnforcementComponent::Event,
     }

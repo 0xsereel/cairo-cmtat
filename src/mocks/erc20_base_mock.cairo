@@ -1,0 +1,128 @@
+// SPDX-License-Identifier: MPL-2.0
+// Mock composing ERC20BaseComponent with the CMTATBaseCommon check chain
+// (CommonHooksImpl): pause, address freeze and partial freeze. The constructor
+// mints without checks.
+
+#[starknet::contract]
+pub mod ERC20BaseMock {
+    use openzeppelin::access::accesscontrol::AccessControlComponent;
+    use openzeppelin::introspection::src5::SRC5Component;
+    use openzeppelin::token::erc20::{ERC20Component, ERC20HooksEmptyImpl};
+    use starknet::ContractAddress;
+    use crate::components::access::CMTATAccessControlComponent;
+    use crate::components::enforcement::EnforcementComponent;
+    use crate::components::erc20_base::ERC20BaseComponent;
+    use crate::components::erc20_enforcement::ERC20EnforcementComponent;
+    use crate::components::hooks::CommonHooksImpl;
+    use crate::components::pause::PauseComponent;
+    use crate::components::validation::ValidationComponent;
+
+    component!(path: ERC20Component, storage: erc20, event: ERC20Event);
+    component!(path: AccessControlComponent, storage: access_control, event: AccessControlEvent);
+    component!(path: SRC5Component, storage: src5, event: SRC5Event);
+    component!(
+        path: CMTATAccessControlComponent, storage: cmtat_access, event: CMTATAccessControlEvent,
+    );
+    component!(path: PauseComponent, storage: pause, event: PauseEvent);
+    component!(path: EnforcementComponent, storage: enforcement, event: EnforcementEvent);
+    component!(
+        path: ERC20EnforcementComponent, storage: erc20_enforcement, event: ERC20EnforcementEvent,
+    );
+    component!(path: ValidationComponent, storage: validation, event: ValidationEvent);
+    component!(path: ERC20BaseComponent, storage: erc20_base, event: ERC20BaseEvent);
+
+    // ERC-20
+    #[abi(embed_v0)]
+    impl ERC20Impl = ERC20BaseComponent::ERC20Impl<ContractState>;
+    #[abi(embed_v0)]
+    impl ERC20CamelOnlyImpl = ERC20BaseComponent::ERC20CamelOnlyImpl<ContractState>;
+    #[abi(embed_v0)]
+    impl ERC20MetadataImpl = ERC20BaseComponent::ERC20MetadataImpl<ContractState>;
+    #[abi(embed_v0)]
+    impl ERC20BatchBalanceImpl =
+        ERC20BaseComponent::ERC20BatchBalanceImpl<ContractState>;
+    impl ERC20BaseInternalImpl = ERC20BaseComponent::InternalImpl<ContractState>;
+    impl ERC20InternalImpl = ERC20Component::InternalImpl<ContractState>;
+
+    // Access control
+    #[abi(embed_v0)]
+    impl AccessControlImpl =
+        CMTATAccessControlComponent::AccessControlImpl<ContractState>;
+    impl AccessControlInternalImpl = CMTATAccessControlComponent::InternalImpl<ContractState>;
+
+    // Pause
+    #[abi(embed_v0)]
+    impl PauseImpl = PauseComponent::PauseImpl<ContractState>;
+    #[abi(embed_v0)]
+    impl ERC8343Impl = PauseComponent::ERC8343Impl<ContractState>;
+    impl PauseInternalImpl = PauseComponent::InternalImpl<ContractState>;
+
+    // Enforcement
+    #[abi(embed_v0)]
+    impl EnforcementImpl = EnforcementComponent::EnforcementImpl<ContractState>;
+    #[abi(embed_v0)]
+    impl ERC3643ERC20EnforcementImpl =
+        ERC20EnforcementComponent::ERC3643ERC20EnforcementImpl<ContractState>;
+    #[abi(embed_v0)]
+    impl ERC7943FungibleEnforcementImpl =
+        ERC20EnforcementComponent::ERC7943FungibleEnforcementImpl<ContractState>;
+
+    #[storage]
+    struct Storage {
+        #[substorage(v0)]
+        erc20: ERC20Component::Storage,
+        #[substorage(v0)]
+        access_control: AccessControlComponent::Storage,
+        #[substorage(v0)]
+        src5: SRC5Component::Storage,
+        #[substorage(v0)]
+        cmtat_access: CMTATAccessControlComponent::Storage,
+        #[substorage(v0)]
+        pause: PauseComponent::Storage,
+        #[substorage(v0)]
+        enforcement: EnforcementComponent::Storage,
+        #[substorage(v0)]
+        erc20_enforcement: ERC20EnforcementComponent::Storage,
+        #[substorage(v0)]
+        validation: ValidationComponent::Storage,
+        #[substorage(v0)]
+        erc20_base: ERC20BaseComponent::Storage,
+    }
+
+    #[event]
+    #[derive(Drop, starknet::Event)]
+    enum Event {
+        #[flat]
+        ERC20Event: ERC20Component::Event,
+        #[flat]
+        AccessControlEvent: AccessControlComponent::Event,
+        #[flat]
+        SRC5Event: SRC5Component::Event,
+        #[flat]
+        CMTATAccessControlEvent: CMTATAccessControlComponent::Event,
+        #[flat]
+        PauseEvent: PauseComponent::Event,
+        #[flat]
+        EnforcementEvent: EnforcementComponent::Event,
+        #[flat]
+        ERC20EnforcementEvent: ERC20EnforcementComponent::Event,
+        #[flat]
+        ValidationEvent: ValidationComponent::Event,
+        #[flat]
+        ERC20BaseEvent: ERC20BaseComponent::Event,
+    }
+
+    #[constructor]
+    fn constructor(
+        ref self: ContractState,
+        decimals: u8,
+        initial_supply: u256,
+        recipient: ContractAddress,
+        admin: ContractAddress,
+    ) {
+        self.erc20_base.initializer("Mock", "MCK", decimals);
+        self.cmtat_access.initializer(admin);
+        self.pause.initializer();
+        self.erc20.mint(recipient, initial_supply);
+    }
+}

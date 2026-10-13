@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // ERC20EnforcementComponent: partial freeze, active balance and forced transfer.
 
+use cairo_cmtat::components::erc20_base::ERC20BaseComponent;
 use cairo_cmtat::components::erc20_enforcement::ERC20EnforcementComponent;
 use cairo_cmtat::errors;
 use cairo_cmtat::interfaces::erc20_enforcement::{
@@ -432,8 +433,8 @@ fn forced_transfer_spends_recipient_allowance() {
     spy
         .assert_emitted_single(
             token,
-            ERC20EnforcementComponent::Event::Spend(
-                ERC20EnforcementComponent::Spend { account: HOLDER, spender: RECIPIENT, value: 30 },
+            ERC20BaseComponent::Event::Spend(
+                ERC20BaseComponent::Spend { account: HOLDER, spender: RECIPIENT, value: 30 },
             ),
         );
     spy.assert_emitted_single(token, transfer_event(HOLDER, RECIPIENT, 30));
