@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0
 
+pub mod errors;
+pub mod roles;
+
 // CMTAT interfaces
 pub mod interfaces {
     pub mod icmtat;
@@ -13,8 +16,8 @@ pub mod contracts {
     pub mod standard_cmtat;
 }
 
-// CMTAT engines - Rule and Snapshot engines
-pub mod engines {
+// Test doubles and sample engines; production engines live in separate repositories
+pub mod mocks {
     pub mod rule_engine;
     pub mod snapshot_engine;
 }
