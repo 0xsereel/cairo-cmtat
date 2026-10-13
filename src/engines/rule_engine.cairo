@@ -9,23 +9,17 @@ pub trait IRuleEngine<TContractState> {
     /// Detects transfer restriction code (ERC-1404 compatible)
     /// Returns 0 if no restriction, non-zero code otherwise
     fn detect_transfer_restriction(
-        self: @TContractState,
-        from: ContractAddress,
-        to: ContractAddress,
-        amount: u256
+        self: @TContractState, from: ContractAddress, to: ContractAddress, amount: u256,
     ) -> u8;
-    
+
     /// Returns human-readable message for restriction code
     fn message_for_restriction_code(self: @TContractState, restriction_code: u8) -> ByteArray;
-    
+
     /// Called after successful transfer to update engine state
     fn on_transfer_executed(
-        ref self: TContractState,
-        from: ContractAddress,
-        to: ContractAddress,
-        amount: u256
+        ref self: TContractState, from: ContractAddress, to: ContractAddress, amount: u256,
     );
-    
+
     /// Check if address is allowed to hold tokens
     fn is_address_valid(self: @TContractState, addr: ContractAddress) -> bool;
 }
@@ -33,14 +27,14 @@ pub trait IRuleEngine<TContractState> {
 /// Simple Whitelist Rule Engine Implementation
 #[starknet::contract]
 mod WhitelistRuleEngine {
-    use core::num::traits::{Zero};
-    use super::IRuleEngine;
+    use core::num::traits::Zero;
     use openzeppelin::access::ownable::OwnableComponent;
-    use starknet::{ContractAddress};
+    use starknet::ContractAddress;
     use starknet::storage::{
         Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
         StoragePointerWriteAccess,
     };
+    use super::IRuleEngine;
 
 
     component!(path: OwnableComponent, storage: ownable, event: OwnableEvent);
@@ -95,7 +89,7 @@ mod WhitelistRuleEngine {
         ref self: ContractState,
         owner: ContractAddress,
         token_contract: ContractAddress,
-        max_balance: u256
+        max_balance: u256,
     ) {
         self.ownable.initializer(owner);
         self.token_contract.write(token_contract);
@@ -105,13 +99,10 @@ mod WhitelistRuleEngine {
     #[abi(embed_v0)]
     impl RuleEngineImpl of IRuleEngine<ContractState> {
         fn detect_transfer_restriction(
-            self: @ContractState,
-            from: ContractAddress,
-            to: ContractAddress,
-            amount: u256
+            self: @ContractState, from: ContractAddress, to: ContractAddress, amount: u256,
         ) -> u8 {
             let zero_address = Zero::zero();
-            
+
             // Allow minting (from zero address)
             if from == zero_address {
                 if !self.is_address_valid(to) {
@@ -119,28 +110,28 @@ mod WhitelistRuleEngine {
                 }
                 return 0;
             }
-            
+
             // Allow burning (to zero address)
             if to == zero_address {
                 return 0;
             }
-            
+
             // Check sender whitelisted
             if !self.is_address_valid(from) {
                 return 2; // Sender not whitelisted
             }
-            
+
             // Check recipient whitelisted
             if !self.is_address_valid(to) {
                 return 1; // Recipient not whitelisted
             }
-            
+
             // Check max balance (simplified - would need to query token balance in practice)
             let max_bal = self.max_balance.read();
             if max_bal > 0 && amount > max_bal {
                 return 3; // Exceeds max balance
             }
-            
+
             0 // No restriction
         }
 
@@ -159,13 +150,9 @@ mod WhitelistRuleEngine {
         }
 
         fn on_transfer_executed(
-            ref self: ContractState,
-            from: ContractAddress,
-            to: ContractAddress,
-            amount: u256
-        ) {
-            // Can be used to update internal state, track volumes, etc.
-            // This simple implementation doesn't need state updates
+            ref self: ContractState, from: ContractAddress, to: ContractAddress, amount: u256,
+        ) { // Can be used to update internal state, track volumes, etc.
+        // This simple implementation doesn't need state updates
         }
 
         fn is_address_valid(self: @ContractState, addr: ContractAddress) -> bool {
@@ -179,21 +166,21 @@ mod WhitelistRuleEngine {
             self.ownable.assert_only_owner();
             let zero_address = Zero::zero();
             assert(address != zero_address, Errors::ZERO_ADDRESS);
-            
+
             self.whitelisted.write(address, true);
             self.emit(AddressWhitelisted { address });
         }
 
         fn remove_from_whitelist(ref self: ContractState, address: ContractAddress) {
             self.ownable.assert_only_owner();
-            
+
             self.whitelisted.write(address, false);
             self.emit(AddressRemoved { address });
         }
 
         fn batch_add_to_whitelist(ref self: ContractState, addresses: Array<ContractAddress>) {
             self.ownable.assert_only_owner();
-            
+
             let zero_address = Zero::zero();
             let mut i = 0;
             loop {

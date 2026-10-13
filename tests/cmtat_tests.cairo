@@ -3,12 +3,16 @@
 
 use starknet::{ContractAddress, contract_address_const};
 
-// Test constants  
+// Test constants
 const ADMIN: felt252 = 0x123;
 const USER1: felt252 = 0x456;
 
-fn admin() -> ContractAddress { contract_address_const::<ADMIN>() }
-fn user1() -> ContractAddress { contract_address_const::<USER1>() }
+fn admin() -> ContractAddress {
+    contract_address_const::<ADMIN>()
+}
+fn user1() -> ContractAddress {
+    contract_address_const::<USER1>()
+}
 
 #[test]
 fn test_basic_functionality() {
@@ -16,5 +20,6 @@ fn test_basic_functionality() {
     let admin_addr = admin();
     assert(admin_addr != user1(), 'Admin should not equal user1');
 }
-
 // TODO: Add more tests for CMTAT itself
+
+

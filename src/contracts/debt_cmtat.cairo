@@ -5,15 +5,15 @@ use starknet::ContractAddress;
 
 #[starknet::contract]
 mod DebtCMTAT {
-    use core::num::traits::{Zero};
-    use openzeppelin::token::erc20::{ERC20Component, DefaultConfig};
+    use core::num::traits::Zero;
     use openzeppelin::access::accesscontrol::{AccessControlComponent, DEFAULT_ADMIN_ROLE};
     use openzeppelin::introspection::src5::SRC5Component;
-    use starknet::{ContractAddress, get_caller_address};
+    use openzeppelin::token::erc20::{DefaultConfig, ERC20Component};
     use starknet::storage::{
         Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
         StoragePointerWriteAccess,
     };
+    use starknet::{ContractAddress, get_caller_address};
 
     component!(path: ERC20Component, storage: erc20, event: ERC20Event);
     component!(path: AccessControlComponent, storage: access_control, event: AccessControlEvent);
@@ -22,7 +22,8 @@ mod DebtCMTAT {
     #[abi(embed_v0)]
     impl ERC20MixinImpl = ERC20Component::ERC20MixinImpl<ContractState>;
     #[abi(embed_v0)]
-    impl AccessControlMixinImpl = AccessControlComponent::AccessControlMixinImpl<ContractState>;
+    impl AccessControlMixinImpl =
+        AccessControlComponent::AccessControlMixinImpl<ContractState>;
 
     impl ERC20InternalImpl = ERC20Component::InternalImpl<ContractState>;
     impl AccessControlInternalImpl = AccessControlComponent::InternalImpl<ContractState>;
@@ -199,7 +200,7 @@ mod DebtCMTAT {
         name: ByteArray,
         symbol: ByteArray,
         initial_supply: u256,
-        recipient: ContractAddress
+        recipient: ContractAddress,
     ) {
         self.erc20.initializer(name, symbol);
         self.access_control.initializer();
@@ -279,7 +280,7 @@ mod DebtCMTAT {
                 let account = *accounts.at(i);
                 balances.append(self.erc20.balance_of(account));
                 i += 1;
-            };
+            }
             balances
         }
 
@@ -338,11 +339,13 @@ mod DebtCMTAT {
             true
         }
 
-        fn batch_mint(ref self: ContractState, tos: Span<ContractAddress>, values: Span<u256>) -> bool {
+        fn batch_mint(
+            ref self: ContractState, tos: Span<ContractAddress>, values: Span<u256>,
+        ) -> bool {
             self.access_control.assert_only_role(MINTER_ROLE);
             assert(!self.deactivated(), 'Contract is deactivated');
             assert(tos.len() == values.len(), 'Arrays length mismatch');
-            
+
             let mut i: u32 = 0;
             loop {
                 if i >= tos.len() {
@@ -353,22 +356,24 @@ mod DebtCMTAT {
                 self.erc20.mint(to, value);
                 self.emit(Mint { to, value });
                 i += 1;
-            };
+            }
             true
         }
 
-        fn burn_and_mint(ref self: ContractState, from: ContractAddress, to: ContractAddress, value: u256) -> bool {
+        fn burn_and_mint(
+            ref self: ContractState, from: ContractAddress, to: ContractAddress, value: u256,
+        ) -> bool {
             self.access_control.assert_only_role(MINTER_ROLE);
             assert(!self.deactivated(), 'Contract is deactivated');
-            
+
             // Validate addresses are not frozen
             assert(!self.is_frozen(from), 'From address is frozen');
             assert(!self.is_frozen(to), 'To address is frozen');
-            
+
             // Verify sufficient active balance before burning
             let active_balance = self.get_active_balance_of(from);
             assert(active_balance >= value, 'Insufficient active balance');
-            
+
             self.erc20.burn(from, value);
             self.emit(Burn { from, value });
             self.erc20.mint(to, value);
@@ -397,11 +402,13 @@ mod DebtCMTAT {
             true
         }
 
-        fn batch_burn(ref self: ContractState, accounts: Span<ContractAddress>, values: Span<u256>) -> bool {
+        fn batch_burn(
+            ref self: ContractState, accounts: Span<ContractAddress>, values: Span<u256>,
+        ) -> bool {
             self.access_control.assert_only_role(BURNER_ROLE);
             assert(!self.deactivated(), 'Contract is deactivated');
             assert(accounts.len() == values.len(), 'Arrays length mismatch');
-            
+
             let mut i: u32 = 0;
             loop {
                 if i >= accounts.len() {
@@ -413,7 +420,7 @@ mod DebtCMTAT {
                 self.erc20.burn(from, value);
                 self.emit(Burn { from, value });
                 i += 1;
-            };
+            }
             true
         }
 
@@ -450,7 +457,9 @@ mod DebtCMTAT {
         }
 
         // ============ Freezing Functions ============
-        fn set_address_frozen(ref self: ContractState, account: ContractAddress, is_frozen: bool) -> bool {
+        fn set_address_frozen(
+            ref self: ContractState, account: ContractAddress, is_frozen: bool,
+        ) -> bool {
             self.access_control.assert_only_role(ENFORCER_ROLE);
             self.frozen_addresses.write(account, is_frozen);
             if is_frozen {
@@ -461,10 +470,12 @@ mod DebtCMTAT {
             true
         }
 
-        fn batch_set_address_frozen(ref self: ContractState, accounts: Span<ContractAddress>, frozen: Span<bool>) -> bool {
+        fn batch_set_address_frozen(
+            ref self: ContractState, accounts: Span<ContractAddress>, frozen: Span<bool>,
+        ) -> bool {
             self.access_control.assert_only_role(ENFORCER_ROLE);
             assert(accounts.len() == frozen.len(), 'Arrays length mismatch');
-            
+
             let mut i: u32 = 0;
             loop {
                 if i >= accounts.len() {
@@ -479,7 +490,7 @@ mod DebtCMTAT {
                     self.emit(AddressUnfrozen { account });
                 }
                 i += 1;
-            };
+            }
             true
         }
 
@@ -487,20 +498,24 @@ mod DebtCMTAT {
             self.frozen_addresses.read(account)
         }
 
-        fn freeze_partial_tokens(ref self: ContractState, account: ContractAddress, value: u256) -> bool {
+        fn freeze_partial_tokens(
+            ref self: ContractState, account: ContractAddress, value: u256,
+        ) -> bool {
             self.access_control.assert_only_role(ERC20ENFORCER_ROLE);
             let current_frozen = self.frozen_tokens.read(account);
             let balance = self.erc20.balance_of(account);
-            
+
             // Ensure frozen tokens never exceed account balance
             assert(current_frozen + value <= balance, 'Cannot freeze more than balance');
-            
+
             self.frozen_tokens.write(account, current_frozen + value);
             self.emit(TokensFrozen { account, amount: value });
             true
         }
 
-        fn unfreeze_partial_tokens(ref self: ContractState, account: ContractAddress, value: u256) -> bool {
+        fn unfreeze_partial_tokens(
+            ref self: ContractState, account: ContractAddress, value: u256,
+        ) -> bool {
             self.access_control.assert_only_role(ERC20ENFORCER_ROLE);
             let current_frozen = self.frozen_tokens.read(account);
             assert(current_frozen >= value, 'Insufficient frozen tokens');
@@ -599,7 +614,7 @@ mod DebtCMTAT {
             ref self: ERC20Component::ComponentState<ContractState>,
             from: ContractAddress,
             recipient: ContractAddress,
-            amount: u256
+            amount: u256,
         ) {
             let contract_state = ERC20Component::HasComponent::get_contract(@self);
             let zero_address = Zero::zero();
@@ -609,7 +624,7 @@ mod DebtCMTAT {
                 assert(!contract_state.paused.read(), 'Contract is paused');
                 assert(!contract_state.is_frozen(from), 'Sender frozen');
                 assert(!contract_state.is_frozen(recipient), 'Recipient frozen');
-                
+
                 // Check active balance
                 let active_balance = contract_state.get_active_balance_of(from);
                 assert(active_balance >= amount, 'Insufficient active balance');
@@ -620,7 +635,7 @@ mod DebtCMTAT {
             ref self: ERC20Component::ComponentState<ContractState>,
             from: ContractAddress,
             recipient: ContractAddress,
-            amount: u256
+            amount: u256,
         ) {}
     }
 }
@@ -634,10 +649,10 @@ trait IDebtCMTAT<TContractState> {
     fn set_information(ref self: TContractState, new_information: ByteArray) -> bool;
     fn token_id(self: @TContractState) -> ByteArray;
     fn set_token_id(ref self: TContractState, new_token_id: ByteArray) -> bool;
-    
+
     // Balance queries
     fn batch_balance_of(self: @TContractState, accounts: Span<ContractAddress>) -> Array<u256>;
-    
+
     // Role getters
     fn get_default_admin_role(self: @TContractState) -> felt252;
     fn get_minter_role(self: @TContractState) -> felt252;
@@ -649,36 +664,48 @@ trait IDebtCMTAT<TContractState> {
     fn get_document_role(self: @TContractState) -> felt252;
     fn get_extra_information_role(self: @TContractState) -> felt252;
     fn get_debt_role(self: @TContractState) -> felt252;
-    
+
     // Version
     fn version(self: @TContractState) -> ByteArray;
-    
+
     // Minting
     fn mint(ref self: TContractState, to: ContractAddress, value: u256) -> bool;
     fn batch_mint(ref self: TContractState, tos: Span<ContractAddress>, values: Span<u256>) -> bool;
-    fn burn_and_mint(ref self: TContractState, from: ContractAddress, to: ContractAddress, value: u256) -> bool;
-    
+    fn burn_and_mint(
+        ref self: TContractState, from: ContractAddress, to: ContractAddress, value: u256,
+    ) -> bool;
+
     // Burning
     fn burn(ref self: TContractState, value: u256) -> bool;
     fn burn_from(ref self: TContractState, from: ContractAddress, value: u256) -> bool;
-    fn batch_burn(ref self: TContractState, accounts: Span<ContractAddress>, values: Span<u256>) -> bool;
-    
+    fn batch_burn(
+        ref self: TContractState, accounts: Span<ContractAddress>, values: Span<u256>,
+    ) -> bool;
+
     // Pause
     fn paused(self: @TContractState) -> bool;
     fn pause(ref self: TContractState) -> bool;
     fn unpause(ref self: TContractState) -> bool;
     fn deactivated(self: @TContractState) -> bool;
     fn deactivate_contract(ref self: TContractState) -> bool;
-    
+
     // Freezing
-    fn set_address_frozen(ref self: TContractState, account: ContractAddress, is_frozen: bool) -> bool;
-    fn batch_set_address_frozen(ref self: TContractState, accounts: Span<ContractAddress>, frozen: Span<bool>) -> bool;
+    fn set_address_frozen(
+        ref self: TContractState, account: ContractAddress, is_frozen: bool,
+    ) -> bool;
+    fn batch_set_address_frozen(
+        ref self: TContractState, accounts: Span<ContractAddress>, frozen: Span<bool>,
+    ) -> bool;
     fn is_frozen(self: @TContractState, account: ContractAddress) -> bool;
-    fn freeze_partial_tokens(ref self: TContractState, account: ContractAddress, value: u256) -> bool;
-    fn unfreeze_partial_tokens(ref self: TContractState, account: ContractAddress, value: u256) -> bool;
+    fn freeze_partial_tokens(
+        ref self: TContractState, account: ContractAddress, value: u256,
+    ) -> bool;
+    fn unfreeze_partial_tokens(
+        ref self: TContractState, account: ContractAddress, value: u256,
+    ) -> bool;
     fn get_frozen_tokens(self: @TContractState, account: ContractAddress) -> u256;
     fn get_active_balance_of(self: @TContractState, account: ContractAddress) -> u256;
-    
+
     // Debt-specific
     fn debt(self: @TContractState) -> ByteArray;
     fn set_debt(ref self: TContractState, debt_: ByteArray) -> bool;
@@ -687,13 +714,13 @@ trait IDebtCMTAT<TContractState> {
     fn debt_engine(self: @TContractState) -> ContractAddress;
     fn set_debt_engine(ref self: TContractState, debt_engine_: ContractAddress) -> bool;
     fn flag_default(ref self: TContractState) -> bool;
-    
+
     // Engines
     fn set_snapshot_engine(ref self: TContractState, snapshot_engine_: ContractAddress) -> bool;
     fn snapshot_engine(self: @TContractState) -> ContractAddress;
     fn set_document_engine(ref self: TContractState, document_engine_: ContractAddress) -> bool;
     fn document_engine(self: @TContractState) -> ContractAddress;
-    
+
     // Utility
     fn token_type(self: @TContractState) -> ByteArray;
 }

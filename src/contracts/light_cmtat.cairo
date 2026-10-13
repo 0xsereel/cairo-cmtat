@@ -5,16 +5,16 @@ use starknet::ContractAddress;
 
 #[starknet::contract]
 mod LightCMTAT {
-    use core::num::traits::{Zero};
-    use openzeppelin::token::erc20::{ERC20Component, DefaultConfig};
+    use core::num::traits::Zero;
     use openzeppelin::access::accesscontrol::{AccessControlComponent, DEFAULT_ADMIN_ROLE};
     use openzeppelin::introspection::src5::SRC5Component;
-    use starknet::{ContractAddress, get_caller_address};
+    use openzeppelin::token::erc20::{DefaultConfig, ERC20Component};
     use starknet::storage::{
         Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
         StoragePointerWriteAccess,
     };
-    
+    use starknet::{ContractAddress, get_caller_address};
+
     component!(path: ERC20Component, storage: erc20, event: ERC20Event);
     component!(path: AccessControlComponent, storage: access_control, event: AccessControlEvent);
     component!(path: SRC5Component, storage: src5, event: SRC5Event);
@@ -22,7 +22,8 @@ mod LightCMTAT {
     #[abi(embed_v0)]
     impl ERC20MixinImpl = ERC20Component::ERC20MixinImpl<ContractState>;
     #[abi(embed_v0)]
-    impl AccessControlMixinImpl = AccessControlComponent::AccessControlMixinImpl<ContractState>;
+    impl AccessControlMixinImpl =
+        AccessControlComponent::AccessControlMixinImpl<ContractState>;
 
     impl ERC20InternalImpl = ERC20Component::InternalImpl<ContractState>;
     impl AccessControlInternalImpl = AccessControlComponent::InternalImpl<ContractState>;
@@ -153,7 +154,7 @@ mod LightCMTAT {
         symbol: ByteArray,
         initial_supply: u256,
         recipient: ContractAddress,
-        terms: felt252
+        terms: felt252,
     ) {
         self.erc20.initializer(name, symbol);
         self.access_control.initializer();
@@ -219,7 +220,7 @@ mod LightCMTAT {
                 let account = *accounts.at(i);
                 balances.append(self.erc20.balance_of(account));
                 i += 1;
-            };
+            }
             balances
         }
 
@@ -254,11 +255,13 @@ mod LightCMTAT {
             true
         }
 
-        fn batch_mint(ref self: ContractState, tos: Span<ContractAddress>, values: Span<u256>) -> bool {
+        fn batch_mint(
+            ref self: ContractState, tos: Span<ContractAddress>, values: Span<u256>,
+        ) -> bool {
             self.access_control.assert_only_role(MINTER_ROLE);
             assert(!self.deactivated(), 'Contract is deactivated');
             assert(tos.len() == values.len(), 'Arrays length mismatch');
-            
+
             let mut i: u32 = 0;
             loop {
                 if i >= tos.len() {
@@ -269,7 +272,7 @@ mod LightCMTAT {
                 self.erc20.mint(to, value);
                 self.emit(Mint { to, value });
                 i += 1;
-            };
+            }
             true
         }
 
@@ -292,11 +295,13 @@ mod LightCMTAT {
             true
         }
 
-        fn batch_burn(ref self: ContractState, accounts: Span<ContractAddress>, values: Span<u256>) -> bool {
+        fn batch_burn(
+            ref self: ContractState, accounts: Span<ContractAddress>, values: Span<u256>,
+        ) -> bool {
             self.access_control.assert_only_role(DEFAULT_ADMIN_ROLE);
             assert(!self.deactivated(), 'Contract is deactivated');
             assert(accounts.len() == values.len(), 'Arrays length mismatch');
-            
+
             let mut i: u32 = 0;
             loop {
                 if i >= accounts.len() {
@@ -307,7 +312,7 @@ mod LightCMTAT {
                 self.erc20.burn(from, value);
                 self.emit(Burn { from, value });
                 i += 1;
-            };
+            }
             true
         }
 
@@ -318,7 +323,9 @@ mod LightCMTAT {
             true
         }
 
-        fn burn_and_mint(ref self: ContractState, from: ContractAddress, to: ContractAddress, value: u256) -> bool {
+        fn burn_and_mint(
+            ref self: ContractState, from: ContractAddress, to: ContractAddress, value: u256,
+        ) -> bool {
             self.access_control.assert_only_role(MINTER_ROLE);
             assert(!self.deactivated(), 'Contract is deactivated');
             self.erc20.burn(from, value);
@@ -360,7 +367,9 @@ mod LightCMTAT {
         }
 
         // ============ Freezing Functions ============
-        fn set_address_frozen(ref self: ContractState, account: ContractAddress, is_frozen: bool) -> bool {
+        fn set_address_frozen(
+            ref self: ContractState, account: ContractAddress, is_frozen: bool,
+        ) -> bool {
             self.access_control.assert_only_role(ENFORCER_ROLE);
             self.frozen_addresses.write(account, is_frozen);
             if is_frozen {
@@ -371,10 +380,12 @@ mod LightCMTAT {
             true
         }
 
-        fn batch_set_address_frozen(ref self: ContractState, accounts: Span<ContractAddress>, frozen: Span<bool>) -> bool {
+        fn batch_set_address_frozen(
+            ref self: ContractState, accounts: Span<ContractAddress>, frozen: Span<bool>,
+        ) -> bool {
             self.access_control.assert_only_role(ENFORCER_ROLE);
             assert(accounts.len() == frozen.len(), 'Arrays length mismatch');
-            
+
             let mut i: u32 = 0;
             loop {
                 if i >= accounts.len() {
@@ -389,7 +400,7 @@ mod LightCMTAT {
                     self.emit(AddressUnfrozen { account });
                 }
                 i += 1;
-            };
+            }
             true
         }
 
@@ -409,7 +420,7 @@ mod LightCMTAT {
             ref self: ERC20Component::ComponentState<ContractState>,
             from: ContractAddress,
             recipient: ContractAddress,
-            amount: u256
+            amount: u256,
         ) {
             let contract_state = ERC20Component::HasComponent::get_contract(@self);
             let zero_address = Zero::zero();
@@ -426,7 +437,7 @@ mod LightCMTAT {
             ref self: ERC20Component::ComponentState<ContractState>,
             from: ContractAddress,
             recipient: ContractAddress,
-            amount: u256
+            amount: u256,
         ) {}
     }
 }
@@ -440,42 +451,50 @@ trait ILightCMTAT<TContractState> {
     fn set_information(ref self: TContractState, new_information: ByteArray);
     fn token_id(self: @TContractState) -> ByteArray;
     fn set_token_id(ref self: TContractState, new_token_id: ByteArray);
-    
+
     // Balance queries
     fn batch_balance_of(self: @TContractState, accounts: Span<ContractAddress>) -> Array<u256>;
-    
+
     // Role getters
     fn get_default_admin_role(self: @TContractState) -> felt252;
     fn get_minter_role(self: @TContractState) -> felt252;
     fn get_pauser_role(self: @TContractState) -> felt252;
     fn get_enforcer_role(self: @TContractState) -> felt252;
-    
+
     // Version
     fn version(self: @TContractState) -> ByteArray;
-    
+
     // Minting
     fn mint(ref self: TContractState, to: ContractAddress, value: u256) -> bool;
     fn batch_mint(ref self: TContractState, tos: Span<ContractAddress>, values: Span<u256>) -> bool;
-    
+
     // Burning
     fn burn(ref self: TContractState, value: u256) -> bool;
     fn burn_from(ref self: TContractState, from: ContractAddress, value: u256) -> bool;
-    fn batch_burn(ref self: TContractState, accounts: Span<ContractAddress>, values: Span<u256>) -> bool;
+    fn batch_burn(
+        ref self: TContractState, accounts: Span<ContractAddress>, values: Span<u256>,
+    ) -> bool;
     fn forced_burn(ref self: TContractState, from: ContractAddress, value: u256) -> bool;
-    fn burn_and_mint(ref self: TContractState, from: ContractAddress, to: ContractAddress, value: u256) -> bool;
-    
+    fn burn_and_mint(
+        ref self: TContractState, from: ContractAddress, to: ContractAddress, value: u256,
+    ) -> bool;
+
     // Pause
     fn paused(self: @TContractState) -> bool;
     fn pause(ref self: TContractState) -> bool;
     fn unpause(ref self: TContractState) -> bool;
     fn deactivated(self: @TContractState) -> bool;
     fn deactivate_contract(ref self: TContractState) -> bool;
-    
+
     // Freezing
-    fn set_address_frozen(ref self: TContractState, account: ContractAddress, is_frozen: bool) -> bool;
-    fn batch_set_address_frozen(ref self: TContractState, accounts: Span<ContractAddress>, frozen: Span<bool>) -> bool;
+    fn set_address_frozen(
+        ref self: TContractState, account: ContractAddress, is_frozen: bool,
+    ) -> bool;
+    fn batch_set_address_frozen(
+        ref self: TContractState, accounts: Span<ContractAddress>, frozen: Span<bool>,
+    ) -> bool;
     fn is_frozen(self: @TContractState, account: ContractAddress) -> bool;
-    
+
     // Utility
     fn token_type(self: @TContractState) -> ByteArray;
 }

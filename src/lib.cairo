@@ -7,10 +7,10 @@ pub mod interfaces {
 
 // CMTAT contract implementations - Production ready contracts
 pub mod contracts {
-    pub mod standard_cmtat;
-    pub mod light_cmtat;
-    pub mod debt_cmtat;
     pub mod allowlist_cmtat;
+    pub mod debt_cmtat;
+    pub mod light_cmtat;
+    pub mod standard_cmtat;
 }
 
 // CMTAT engines - Rule and Snapshot engines
