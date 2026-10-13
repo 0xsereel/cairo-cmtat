@@ -5,7 +5,7 @@
 // Each preset supplies the check chain through `CMTATHooksTrait` (CMTAT's
 // `_checkTransferred` / `_canAuthorizeAllowanceByModuleAndRevert`), so the
 // spender is known; OpenZeppelin's `before_update` hook never sees it. Mint and
-// burn components call the same `check_transferred` with `from` or `to` zero.
+// burn components call `CMTATHooksTrait::check_transferred` with `from` or `to` zero.
 
 #[starknet::component]
 pub mod ERC20BaseComponent {
@@ -229,25 +229,6 @@ pub mod ERC20BaseComponent {
             value: u256,
         ) {
             self.emit(Spend { account, spender, value });
-        }
-    }
-
-    #[generate_trait]
-    pub impl CheckImpl<
-        TContractState,
-        +HasComponent<TContractState>,
-        impl Hooks: CMTATHooksTrait<TContractState>,
-        +Drop<TContractState>,
-    > of CheckTrait<TContractState> {
-        /// Runs the preset's check chain. Used by the mint and burn components.
-        fn check_transferred(
-            ref self: ComponentState<TContractState>,
-            spender: ContractAddress,
-            from: ContractAddress,
-            to: ContractAddress,
-            value: u256,
-        ) {
-            Hooks::check_transferred(ref self, spender, from, to, value);
         }
     }
 }

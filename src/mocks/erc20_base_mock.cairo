@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Mock composing ERC20BaseComponent with the CMTATBaseCommon check chain
-// (CommonHooksImpl): pause, address freeze and partial freeze. The constructor
-// mints without checks.
+// (CommonHooksImpl): pause, address freeze, partial freeze and mint. The
+// constructor mints without checks.
 
 #[starknet::contract]
 pub mod ERC20BaseMock {
@@ -14,6 +14,7 @@ pub mod ERC20BaseMock {
     use crate::components::erc20_base::ERC20BaseComponent;
     use crate::components::erc20_enforcement::ERC20EnforcementComponent;
     use crate::components::hooks::CommonHooksImpl;
+    use crate::components::mint::MintComponent;
     use crate::components::pause::PauseComponent;
     use crate::components::validation::ValidationComponent;
 
@@ -30,6 +31,7 @@ pub mod ERC20BaseMock {
     );
     component!(path: ValidationComponent, storage: validation, event: ValidationEvent);
     component!(path: ERC20BaseComponent, storage: erc20_base, event: ERC20BaseEvent);
+    component!(path: MintComponent, storage: mint, event: MintEvent);
 
     // ERC-20
     #[abi(embed_v0)]
@@ -67,6 +69,15 @@ pub mod ERC20BaseMock {
     impl ERC7943FungibleEnforcementImpl =
         ERC20EnforcementComponent::ERC7943FungibleEnforcementImpl<ContractState>;
 
+    // Mint
+    #[abi(embed_v0)]
+    impl ERC3643MintImpl = MintComponent::ERC3643MintImpl<ContractState>;
+    #[abi(embed_v0)]
+    impl ERC3643BatchTransferImpl =
+        MintComponent::ERC3643BatchTransferImpl<ContractState>;
+    #[abi(embed_v0)]
+    impl ERC5679MintImpl = MintComponent::ERC5679MintImpl<ContractState>;
+
     #[storage]
     struct Storage {
         #[substorage(v0)]
@@ -87,6 +98,8 @@ pub mod ERC20BaseMock {
         validation: ValidationComponent::Storage,
         #[substorage(v0)]
         erc20_base: ERC20BaseComponent::Storage,
+        #[substorage(v0)]
+        mint: MintComponent::Storage,
     }
 
     #[event]
@@ -110,6 +123,8 @@ pub mod ERC20BaseMock {
         ValidationEvent: ValidationComponent::Event,
         #[flat]
         ERC20BaseEvent: ERC20BaseComponent::Event,
+        #[flat]
+        MintEvent: MintComponent::Event,
     }
 
     #[constructor]

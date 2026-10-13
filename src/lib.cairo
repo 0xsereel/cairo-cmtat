@@ -10,6 +10,7 @@ pub mod components {
     pub mod erc20_base;
     pub mod erc20_enforcement;
     pub mod hooks;
+    pub mod mint;
     pub mod pause;
     pub mod validation;
 }
@@ -20,6 +21,7 @@ pub mod interfaces {
     pub mod erc20_base;
     pub mod erc20_enforcement;
     pub mod icmtat;
+    pub mod mint;
     pub mod pause;
 }
 
