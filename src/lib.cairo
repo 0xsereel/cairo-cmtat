@@ -6,11 +6,13 @@ pub mod roles;
 // CMTAT modules as Starknet components
 pub mod components {
     pub mod access;
+    pub mod enforcement;
     pub mod pause;
 }
 
 // CMTAT interfaces
 pub mod interfaces {
+    pub mod enforcement;
     pub mod icmtat;
     pub mod pause;
 }
@@ -26,6 +28,7 @@ pub mod contracts {
 // Test doubles and sample engines; production engines live in separate repositories
 pub mod mocks {
     pub mod access_control_mock;
+    pub mod enforcement_mock;
     pub mod erc20_mock;
     pub mod pause_mock;
     pub mod rule_engine;
