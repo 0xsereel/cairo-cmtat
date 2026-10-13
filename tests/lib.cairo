@@ -2,4 +2,5 @@
 
 mod test_access;
 mod test_erc20_mock;
+mod test_pause;
 pub mod utils;
