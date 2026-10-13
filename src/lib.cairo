@@ -18,6 +18,7 @@ pub mod contracts {
 
 // Test doubles and sample engines; production engines live in separate repositories
 pub mod mocks {
+    pub mod erc20_mock;
     pub mod rule_engine;
     pub mod snapshot_engine;
 }

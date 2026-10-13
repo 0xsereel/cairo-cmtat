@@ -6,6 +6,7 @@ name = "cairo_cmtat"
 version = "0.1.0"
 dependencies = [
  "openzeppelin",
+ "openzeppelin_testing",
  "snforge_std",
 ]
 
@@ -108,6 +109,14 @@ version = "4.0.1"
 source = "git+https://github.com/OpenZeppelin/cairo-contracts.git?tag=v4.0.1#87e32f3d1269c80970201e086f3362d4b707368e"
 dependencies = [
  "openzeppelin_interfaces",
+]
+
+[[package]]
+name = "openzeppelin_testing"
+version = "6.7.0"
+source = "git+https://github.com/OpenZeppelin/cairo-contracts.git?tag=v4.0.1#87e32f3d1269c80970201e086f3362d4b707368e"
+dependencies = [
+ "snforge_std",
 ]
 
 [[package]]
