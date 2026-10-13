@@ -23,3 +23,9 @@ exit_first = true
 
 [tool.scarb]
 allow-prebuilt-plugins = ["snforge_std"]
+
+# Required by `snforge test --coverage`. Size checks use the release profile.
+[profile.dev.cairo]
+unstable-add-statements-functions-debug-info = true
+unstable-add-statements-code-locations-debug-info = true
+inlining-strategy = "avoid"
