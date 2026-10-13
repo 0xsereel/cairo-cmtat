@@ -7,12 +7,14 @@ pub mod roles;
 pub mod components {
     pub mod access;
     pub mod enforcement;
+    pub mod erc20_enforcement;
     pub mod pause;
 }
 
 // CMTAT interfaces
 pub mod interfaces {
     pub mod enforcement;
+    pub mod erc20_enforcement;
     pub mod icmtat;
     pub mod pause;
 }
@@ -29,6 +31,7 @@ pub mod contracts {
 pub mod mocks {
     pub mod access_control_mock;
     pub mod enforcement_mock;
+    pub mod erc20_enforcement_mock;
     pub mod erc20_mock;
     pub mod pause_mock;
     pub mod rule_engine;
