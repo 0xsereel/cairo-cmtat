@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MPL-2.0
-// Mock composing ERC20BaseComponent with the CMTATBaseCommon check chain
+// Full-core mock: every component of CMTATBaseCommon, with its check chain
 // (CommonHooksImpl): pause, address freeze, partial freeze, mint, burn, token attributes and extra
 // information. The constructor mints without checks.
 
 #[starknet::contract]
-pub mod ERC20BaseMock {
+pub mod CommonMock {
     use openzeppelin::access::accesscontrol::AccessControlComponent;
     use openzeppelin::introspection::src5::SRC5Component;
     use openzeppelin::token::erc20::{ERC20Component, ERC20HooksEmptyImpl};

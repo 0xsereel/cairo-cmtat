@@ -16,6 +16,7 @@ pub mod components {
     pub mod mint;
     pub mod pause;
     pub mod token_attributes;
+    pub mod upgrade;
     pub mod validation;
 }
 
@@ -33,19 +34,23 @@ pub mod interfaces {
     pub mod token_attributes;
 }
 
-// CMTAT contract implementations - Production ready contracts
+// Deployable tokens composed from the components
+pub mod presets {
+    pub mod light;
+}
+
+// Legacy contracts, removed as each preset lands
 pub mod contracts {
     pub mod allowlist_cmtat;
     pub mod debt_cmtat;
-    pub mod light_cmtat;
     pub mod standard_cmtat;
 }
 
 // Test doubles and sample engines; production engines live in separate repositories
 pub mod mocks {
     pub mod access_control_mock;
+    pub mod common_mock;
     pub mod enforcement_mock;
-    pub mod erc20_base_mock;
     pub mod erc20_enforcement_mock;
     pub mod erc20_mock;
     pub mod forced_burn_mock;

@@ -11,6 +11,8 @@ MAX_SIERRA_BYTES=4089446
 MAX_CASM_FELTS=81920
 
 cd "$(dirname "$0")/.."
+# Scarb keeps artifacts of removed contracts; clear them so only current classes are checked.
+rm -f target/release/*.contract_class.json target/release/*.compiled_contract_class.json
 scarb --release build >/dev/null
 
 python3 - "$MARGIN" "$MAX_SIERRA_BYTES" "$MAX_CASM_FELTS" <<'EOF'

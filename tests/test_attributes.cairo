@@ -34,7 +34,7 @@ fn setup() -> ContractAddress {
     calldata.append_serde(SUPPLY);
     calldata.append_serde(HOLDER);
     calldata.append_serde(ADMIN);
-    let token = openzeppelin_testing::declare_and_deploy("ERC20BaseMock", calldata);
+    let token = openzeppelin_testing::declare_and_deploy("CommonMock", calldata);
     start_cheat_caller_address(token, ADMIN);
     IAccessControlDispatcher { contract_address: token }.grant_role(EXTRA_INFORMATION_ROLE, OTHER);
     start_cheat_caller_address(token, OTHER);
