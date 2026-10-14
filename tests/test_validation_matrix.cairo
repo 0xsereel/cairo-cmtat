@@ -13,8 +13,8 @@
 // - forced_burn (Light): requires `from` frozen, nothing else.
 //
 // Holder = from, RECIPIENT = to, SPENDER = spender. The full matrix runs against
-// CommonMock (CMTATBaseCommon) and the Standard preset; the Light preset runs the
-// subset it supports;
+// CommonMock (CMTATBaseCommon) and the Standard preset; the Light and Debt presets
+// run the subsets they support;
 // the Allowlist preset runs it with every party listed, so the allowlist must not
 // weaken any pause or freeze check.
 //
@@ -96,7 +96,8 @@ const COMMON_OPS: [u8; 8] = [
     FORCED_TRANSFER_TO_ZERO,
 ];
 const LIGHT_OPS: [u8; 6] = [TRANSFER, TRANSFER_FROM, BATCH_TRANSFER, MINT, BURN, FORCED_BURN];
-const ALLOWLIST_OPS: [u8; 7] = [
+/// Allowlist and Debt: no burn-from.
+const NO_BURN_FROM_OPS: [u8; 7] = [
     TRANSFER, TRANSFER_FROM, BATCH_TRANSFER, MINT, BURN, FORCED_TRANSFER, FORCED_TRANSFER_TO_ZERO,
 ];
 
@@ -507,7 +508,7 @@ fn run_allowlist(pause: u8) {
         let token = deploy_allowlist();
         apply_case(token, case);
         check_reads(token, case, false);
-        for op in ALLOWLIST_OPS.span() {
+        for op in NO_BURN_FROM_OPS.span() {
             run_op(token, *op, case);
         }
     }
@@ -565,4 +566,42 @@ fn standard_matrix_paused() {
 #[test]
 fn standard_matrix_deactivated() {
     run_standard(DEACTIVATED);
+}
+
+//
+// CMTATDebt preset: no burn-from or ERC-1404
+//
+
+fn deploy_debt_funded() -> ContractAddress {
+    let token = crate::utils::deploy_debt_preset(ZERO);
+    grant_common_roles(token);
+    start_cheat_caller_address(token, MINTER);
+    IERC3643MintDispatcher { contract_address: token }.mint(HOLDER, SUPPLY);
+    token
+}
+
+fn run_debt(pause: u8) {
+    for case in cases(pause, true) {
+        let token = deploy_debt_funded();
+        apply_case(token, case);
+        check_reads(token, case, false);
+        for op in NO_BURN_FROM_OPS.span() {
+            run_op(token, *op, case);
+        }
+    }
+}
+
+#[test]
+fn debt_matrix_not_paused() {
+    run_debt(NOT_PAUSED);
+}
+
+#[test]
+fn debt_matrix_paused() {
+    run_debt(PAUSED);
+}
+
+#[test]
+fn debt_matrix_deactivated() {
+    run_debt(DEACTIVATED);
 }

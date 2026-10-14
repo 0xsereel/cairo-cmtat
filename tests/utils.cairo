@@ -82,3 +82,14 @@ pub fn deploy_allowlist_preset() -> ContractAddress {
     calldata.append_serde(standard_extra_information());
     openzeppelin_testing::declare_and_deploy("CMTATAllowlist", calldata)
 }
+
+/// Deploys `CMTATDebt` with `ADMIN` as default admin and `rule_engine` (may be
+/// zero). Mints nothing.
+pub fn deploy_debt_preset(rule_engine: ContractAddress) -> ContractAddress {
+    let mut calldata = array![];
+    calldata.append_serde(ADMIN);
+    calldata.append_serde(standard_erc20_attributes());
+    calldata.append_serde(standard_extra_information());
+    calldata.append_serde(rule_engine);
+    openzeppelin_testing::declare_and_deploy("CMTATDebt", calldata)
+}

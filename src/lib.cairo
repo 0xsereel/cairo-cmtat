@@ -38,7 +38,6 @@ pub mod interfaces {
     pub mod erc20_base;
     pub mod erc20_enforcement;
     pub mod extra_information;
-    pub mod icmtat;
     pub mod mint;
     pub mod pause;
     pub mod rule_engine;
@@ -50,13 +49,9 @@ pub mod interfaces {
 // Deployable tokens composed from the components
 pub mod presets {
     pub mod allowlist;
+    pub mod debt;
     pub mod light;
     pub mod standard;
-}
-
-// Legacy contracts, removed as each preset lands
-pub mod contracts {
-    pub mod debt_cmtat;
 }
 
 // Test doubles and sample engines; production engines live in separate repositories
