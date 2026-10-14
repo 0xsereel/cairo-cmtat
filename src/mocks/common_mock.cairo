@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 // Full-core mock: every CMTATBaseCommon component plus the RuleEngine hook,
-// ERC-1404, documents and the SnapshotEngine callback, with RuleEngineHooksImpl as
+// ERC-1404, documents, debt and the SnapshotEngine callback, with RuleEngineHooksImpl as
 // the check chain. No engine is set at deployment. The constructor mints without
 // checks.
 
@@ -13,6 +13,7 @@ pub mod CommonMock {
     use starknet::ContractAddress;
     use crate::components::access::CMTATAccessControlComponent;
     use crate::components::burn::BurnComponent;
+    use crate::components::debt::DebtComponent;
     use crate::components::documents::DocumentsComponent;
     use crate::components::enforcement::EnforcementComponent;
     use crate::components::erc1404::ERC1404Component;
@@ -44,6 +45,7 @@ pub mod CommonMock {
     component!(path: RuleEngineComponent, storage: rule_engine, event: RuleEngineEvent);
     component!(path: DocumentsComponent, storage: documents, event: DocumentsEvent);
     component!(path: SnapshotComponent, storage: snapshot, event: SnapshotEvent);
+    component!(path: DebtComponent, storage: debt, event: DebtEvent);
     component!(
         path: ReentrancyGuardComponent, storage: reentrancy_guard, event: ReentrancyGuardEvent,
     );
@@ -152,6 +154,10 @@ pub mod CommonMock {
     impl SnapshotEngineModuleImpl =
         SnapshotComponent::SnapshotEngineModuleImpl<ContractState>;
 
+    // Debt
+    #[abi(embed_v0)]
+    impl DebtModuleImpl = DebtComponent::DebtModuleImpl<ContractState>;
+
     #[storage]
     struct Storage {
         #[substorage(v0)]
@@ -178,6 +184,8 @@ pub mod CommonMock {
         documents: DocumentsComponent::Storage,
         #[substorage(v0)]
         snapshot: SnapshotComponent::Storage,
+        #[substorage(v0)]
+        debt: DebtComponent::Storage,
         #[substorage(v0)]
         reentrancy_guard: ReentrancyGuardComponent::Storage,
         #[substorage(v0)]
@@ -219,6 +227,8 @@ pub mod CommonMock {
         DocumentsEvent: DocumentsComponent::Event,
         #[flat]
         SnapshotEvent: SnapshotComponent::Event,
+        #[flat]
+        DebtEvent: DebtComponent::Event,
         #[flat]
         ReentrancyGuardEvent: ReentrancyGuardComponent::Event,
         #[flat]

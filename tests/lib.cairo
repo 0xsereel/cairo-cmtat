@@ -4,6 +4,7 @@ mod test_access;
 mod test_allowlist;
 mod test_attributes;
 mod test_burn;
+mod test_debt;
 mod test_documents;
 mod test_enforcement;
 mod test_erc1404;

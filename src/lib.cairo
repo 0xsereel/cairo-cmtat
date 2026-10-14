@@ -8,6 +8,7 @@ pub mod components {
     pub mod access;
     pub mod allowlist;
     pub mod burn;
+    pub mod debt;
     pub mod documents;
     pub mod enforcement;
     pub mod erc1404;
@@ -29,6 +30,7 @@ pub mod components {
 pub mod interfaces {
     pub mod allowlist;
     pub mod burn;
+    pub mod debt;
     pub mod enforcement;
     pub mod erc1404;
     pub mod erc1643;
