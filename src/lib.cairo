@@ -51,6 +51,7 @@ pub mod presets {
     pub mod allowlist;
     pub mod debt;
     pub mod light;
+    pub mod snapshot;
     pub mod standard;
 }
 

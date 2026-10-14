@@ -13,8 +13,8 @@
 // - forced_burn (Light): requires `from` frozen, nothing else.
 //
 // Holder = from, RECIPIENT = to, SPENDER = spender. The full matrix runs against
-// CommonMock (CMTATBaseCommon) and the Standard preset; the Light and Debt presets
-// run the subsets they support;
+// CommonMock (CMTATBaseCommon) and the Standard and Snapshot presets; the Light
+// and Debt presets run the subsets they support;
 // the Allowlist preset runs it with every party listed, so the allowlist must not
 // weaken any pause or freeze check.
 //
@@ -604,4 +604,43 @@ fn debt_matrix_paused() {
 #[test]
 fn debt_matrix_deactivated() {
     run_debt(DEACTIVATED);
+}
+
+//
+// CMTATSnapshot preset: full matrix, with ERC-1404 reads
+//
+
+fn deploy_snapshot_funded() -> ContractAddress {
+    let token = crate::utils::deploy_snapshot_preset(ZERO);
+    grant_common_roles(token);
+    grant(token, BURNER_FROM_ROLE, SPENDER);
+    start_cheat_caller_address(token, MINTER);
+    IERC3643MintDispatcher { contract_address: token }.mint(HOLDER, SUPPLY);
+    token
+}
+
+fn run_snapshot(pause: u8) {
+    for case in cases(pause, true) {
+        let token = deploy_snapshot_funded();
+        apply_case(token, case);
+        check_reads(token, case, true);
+        for op in COMMON_OPS.span() {
+            run_op(token, *op, case);
+        }
+    }
+}
+
+#[test]
+fn snapshot_matrix_not_paused() {
+    run_snapshot(NOT_PAUSED);
+}
+
+#[test]
+fn snapshot_matrix_paused() {
+    run_snapshot(PAUSED);
+}
+
+#[test]
+fn snapshot_matrix_deactivated() {
+    run_snapshot(DEACTIVATED);
 }

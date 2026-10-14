@@ -93,3 +93,14 @@ pub fn deploy_debt_preset(rule_engine: ContractAddress) -> ContractAddress {
     calldata.append_serde(rule_engine);
     openzeppelin_testing::declare_and_deploy("CMTATDebt", calldata)
 }
+
+/// Deploys `CMTATSnapshot` with `ADMIN` as default admin and `rule_engine` (may be
+/// zero). Mints nothing.
+pub fn deploy_snapshot_preset(rule_engine: ContractAddress) -> ContractAddress {
+    let mut calldata = array![];
+    calldata.append_serde(ADMIN);
+    calldata.append_serde(standard_erc20_attributes());
+    calldata.append_serde(standard_extra_information());
+    calldata.append_serde(rule_engine);
+    openzeppelin_testing::declare_and_deploy("CMTATSnapshot", calldata)
+}
