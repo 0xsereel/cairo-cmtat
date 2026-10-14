@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 mod test_access;
+mod test_allowlist;
 mod test_attributes;
 mod test_burn;
 mod test_documents;

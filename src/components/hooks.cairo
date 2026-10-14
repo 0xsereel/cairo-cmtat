@@ -3,12 +3,16 @@
 // one into scope.
 
 use starknet::ContractAddress;
+use crate::components::allowlist::AllowlistComponent;
+use crate::components::allowlist::AllowlistComponent::InternalImpl as AllowlistInternalImpl;
 use crate::components::enforcement::EnforcementComponent;
+use crate::components::enforcement::EnforcementComponent::InternalImpl as EnforcementInternalImpl;
 use crate::components::erc20_base::ERC20BaseComponent;
 use crate::components::erc20_base::ERC20BaseComponent::CMTATHooksTrait;
 use crate::components::erc20_enforcement::ERC20EnforcementComponent;
 use crate::components::erc20_enforcement::ERC20EnforcementComponent::InternalImpl as ERC20EnforcementInternalImpl;
 use crate::components::pause::PauseComponent;
+use crate::components::pause::PauseComponent::InternalImpl as PauseInternalImpl;
 use crate::components::rule_engine::RuleEngineComponent;
 use crate::components::rule_engine::RuleEngineComponent::InternalImpl as RuleEngineInternalImpl;
 use crate::components::validation::ValidationComponent;
@@ -119,5 +123,55 @@ pub impl RuleEngineHooksImpl<
     ) {
         let contract = self.get_contract();
         Validation::get_component(contract).assert_can_approve(owner, spender, value);
+    }
+}
+
+/// CMTATBaseAllowlist: active balance, then the allowlist, then module checks.
+/// Approvals require owner and spender to be listed (when enabled) and not frozen.
+pub impl AllowlistHooksImpl<
+    TContractState,
+    +ERC20BaseComponent::HasComponent<TContractState>,
+    impl Validation: ValidationComponent::HasComponent<TContractState>,
+    impl ERC20Enforcement: ERC20EnforcementComponent::HasComponent<TContractState>,
+    impl Allowlist: AllowlistComponent::HasComponent<TContractState>,
+    impl Pause: PauseComponent::HasComponent<TContractState>,
+    impl Enforcement: EnforcementComponent::HasComponent<TContractState>,
+    +openzeppelin::token::erc20::ERC20Component::HasComponent<TContractState>,
+    +openzeppelin::token::erc20::ERC20Component::ERC20HooksTrait<TContractState>,
+    +openzeppelin::introspection::src5::SRC5Component::HasComponent<TContractState>,
+    +Drop<TContractState>,
+> of CMTATHooksTrait<TContractState> {
+    fn check_transferred(
+        ref self: ERC20BaseComponent::ComponentState<TContractState>,
+        spender: ContractAddress,
+        from: ContractAddress,
+        to: ContractAddress,
+        value: u256,
+    ) {
+        let contract = self.get_contract();
+        ERC20Enforcement::get_component(contract).assert_active_balance(from, value);
+        Allowlist::get_component(contract).assert_allowlisted_generic(spender, from, to);
+        Validation::get_component(contract).assert_can_transfer_generic(spender, from, to);
+    }
+
+    fn check_approve(
+        self: @ERC20BaseComponent::ComponentState<TContractState>,
+        owner: ContractAddress,
+        spender: ContractAddress,
+        value: u256,
+    ) {
+        if value == 0 {
+            return;
+        }
+        let contract = self.get_contract();
+        Pause::get_component(contract).assert_not_paused();
+        let allowlist = Allowlist::get_component(contract);
+        let enforcement = Enforcement::get_component(contract);
+        if !allowlist.is_allowed(owner) || enforcement.is_address_frozen(owner) {
+            crate::errors::cannot_send(owner);
+        }
+        if !allowlist.is_allowed(spender) || enforcement.is_address_frozen(spender) {
+            crate::errors::cannot_send(spender);
+        }
     }
 }

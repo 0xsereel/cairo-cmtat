@@ -13,13 +13,18 @@
 // - forced_burn (Light): requires `from` frozen, nothing else.
 //
 // Holder = from, RECIPIENT = to, SPENDER = spender. The full matrix runs against
-// CommonMock (CMTATBaseCommon); the Light preset runs the subset it supports.
+// CommonMock (CMTATBaseCommon); the Light preset runs the subset it supports;
+// AllowlistMock runs it with every party listed, so the allowlist must not
+// weaken any pause or freeze check.
 //
 // Each case also checks the read path: `can_send` / `can_receive`, `can_transfer`
 // and `can_transfer_from` (true exactly when the matching transfer succeeds) and,
 // on CommonMock, the ERC-1404 code from the read-order model.
 
 use cairo_cmtat::errors;
+use cairo_cmtat::interfaces::allowlist::{
+    IAllowlistModuleDispatcher, IAllowlistModuleDispatcherTrait,
+};
 use cairo_cmtat::interfaces::burn::{
     IBurnFromERC20SafeDispatcher, IBurnFromERC20SafeDispatcherTrait, IERC3643BurnSafeDispatcher,
     IERC3643BurnSafeDispatcherTrait, IForcedBurnERC20SafeDispatcher,
@@ -90,6 +95,9 @@ const COMMON_OPS: [u8; 8] = [
     FORCED_TRANSFER_TO_ZERO,
 ];
 const LIGHT_OPS: [u8; 6] = [TRANSFER, TRANSFER_FROM, BATCH_TRANSFER, MINT, BURN, FORCED_BURN];
+const ALLOWLIST_OPS: [u8; 7] = [
+    TRANSFER, TRANSFER_FROM, BATCH_TRANSFER, MINT, BURN, FORCED_TRANSFER, FORCED_TRANSFER_TO_ZERO,
+];
 
 /// Frozen amount for the partial-freeze case: above any balance, so the active
 /// balance stays 0 even after forced transfers consume frozen tokens.
@@ -474,4 +482,50 @@ fn light_matrix_paused() {
 #[test]
 fn light_matrix_deactivated() {
     run_light(DEACTIVATED);
+}
+
+//
+// AllowlistMock (CMTATBaseAllowlist), every party listed: identical to CommonMock
+//
+
+fn deploy_allowlist() -> ContractAddress {
+    let mut calldata = array![];
+    calldata.append_serde(18_u8);
+    calldata.append_serde(SUPPLY);
+    calldata.append_serde(HOLDER);
+    calldata.append_serde(ADMIN);
+    let token = openzeppelin_testing::declare_and_deploy("AllowlistMock", calldata);
+    grant_common_roles(token);
+    start_cheat_caller_address(token, ADMIN);
+    IAllowlistModuleDispatcher { contract_address: token }
+        .batch_set_address_allowlist(
+            array![HOLDER, RECIPIENT, SPENDER].span(), array![true, true, true].span(),
+        );
+    token
+}
+
+fn run_allowlist(pause: u8) {
+    for case in cases(pause, true) {
+        let token = deploy_allowlist();
+        apply_case(token, case);
+        check_reads(token, case, false);
+        for op in ALLOWLIST_OPS.span() {
+            run_op(token, *op, case);
+        }
+    }
+}
+
+#[test]
+fn allowlist_matrix_not_paused() {
+    run_allowlist(NOT_PAUSED);
+}
+
+#[test]
+fn allowlist_matrix_paused() {
+    run_allowlist(PAUSED);
+}
+
+#[test]
+fn allowlist_matrix_deactivated() {
+    run_allowlist(DEACTIVATED);
 }
