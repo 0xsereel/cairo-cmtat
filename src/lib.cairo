@@ -7,6 +7,7 @@ pub mod roles;
 pub mod components {
     pub mod access;
     pub mod burn;
+    pub mod documents;
     pub mod enforcement;
     pub mod erc1404;
     pub mod erc20_base;

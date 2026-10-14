@@ -12,6 +12,7 @@ pub mod CommonMock {
     use starknet::ContractAddress;
     use crate::components::access::CMTATAccessControlComponent;
     use crate::components::burn::BurnComponent;
+    use crate::components::documents::DocumentsComponent;
     use crate::components::enforcement::EnforcementComponent;
     use crate::components::erc1404::ERC1404Component;
     use crate::components::erc20_base::ERC20BaseComponent;
@@ -39,6 +40,7 @@ pub mod CommonMock {
     component!(path: ValidationComponent, storage: validation, event: ValidationEvent);
     component!(path: ERC1404Component, storage: erc1404, event: ERC1404Event);
     component!(path: RuleEngineComponent, storage: rule_engine, event: RuleEngineEvent);
+    component!(path: DocumentsComponent, storage: documents, event: DocumentsEvent);
     component!(
         path: ReentrancyGuardComponent, storage: reentrancy_guard, event: ReentrancyGuardEvent,
     );
@@ -138,6 +140,10 @@ pub mod CommonMock {
     #[abi(embed_v0)]
     impl ERC1404ExtendImpl = ERC1404Component::ERC1404ExtendImpl<ContractState>;
 
+    // Documents
+    #[abi(embed_v0)]
+    impl ERC1643Impl = DocumentsComponent::ERC1643Impl<ContractState>;
+
     #[storage]
     struct Storage {
         #[substorage(v0)]
@@ -160,6 +166,8 @@ pub mod CommonMock {
         erc1404: ERC1404Component::Storage,
         #[substorage(v0)]
         rule_engine: RuleEngineComponent::Storage,
+        #[substorage(v0)]
+        documents: DocumentsComponent::Storage,
         #[substorage(v0)]
         reentrancy_guard: ReentrancyGuardComponent::Storage,
         #[substorage(v0)]
@@ -197,6 +205,8 @@ pub mod CommonMock {
         ERC1404Event: ERC1404Component::Event,
         #[flat]
         RuleEngineEvent: RuleEngineComponent::Event,
+        #[flat]
+        DocumentsEvent: DocumentsComponent::Event,
         #[flat]
         ReentrancyGuardEvent: ReentrancyGuardComponent::Event,
         #[flat]
