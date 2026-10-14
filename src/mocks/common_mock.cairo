@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MPL-2.0
-// Full-core mock: every component of CMTATBaseCommon, with its check chain
-// (CommonHooksImpl): pause, address freeze, partial freeze, mint, burn, token attributes and extra
-// information. The constructor mints without checks.
+// Full-core mock, equivalent to CMTATBaseERC1404: every CMTATBaseCommon component
+// plus the RuleEngine hook and ERC-1404, with RuleEngineHooksImpl as the check
+// chain. No RuleEngine is set at deployment. The constructor mints without checks.
 
 #[starknet::contract]
 pub mod CommonMock {
     use openzeppelin::access::accesscontrol::AccessControlComponent;
     use openzeppelin::introspection::src5::SRC5Component;
+    use openzeppelin::security::ReentrancyGuardComponent;
     use openzeppelin::token::erc20::{ERC20Component, ERC20HooksEmptyImpl};
     use starknet::ContractAddress;
     use crate::components::access::CMTATAccessControlComponent;
@@ -16,9 +17,10 @@ pub mod CommonMock {
     use crate::components::erc20_base::ERC20BaseComponent;
     use crate::components::erc20_enforcement::ERC20EnforcementComponent;
     use crate::components::extra_information::ExtraInformationComponent;
-    use crate::components::hooks::CommonHooksImpl;
+    use crate::components::hooks::RuleEngineHooksImpl;
     use crate::components::mint::MintComponent;
     use crate::components::pause::PauseComponent;
+    use crate::components::rule_engine::RuleEngineComponent;
     use crate::components::token_attributes::TokenAttributesComponent;
     use crate::components::validation::ValidationComponent;
     use crate::interfaces::erc1643::DocumentInfo;
@@ -36,6 +38,10 @@ pub mod CommonMock {
     );
     component!(path: ValidationComponent, storage: validation, event: ValidationEvent);
     component!(path: ERC1404Component, storage: erc1404, event: ERC1404Event);
+    component!(path: RuleEngineComponent, storage: rule_engine, event: RuleEngineEvent);
+    component!(
+        path: ReentrancyGuardComponent, storage: reentrancy_guard, event: ReentrancyGuardEvent,
+    );
     component!(path: ERC20BaseComponent, storage: erc20_base, event: ERC20BaseEvent);
     component!(path: MintComponent, storage: mint, event: MintEvent);
     component!(path: BurnComponent, storage: burn, event: BurnEvent);
@@ -120,10 +126,13 @@ pub mod CommonMock {
         ValidationComponent::ERC7943SendReceiveImpl<ContractState>;
     #[abi(embed_v0)]
     impl ComplianceReadImpl =
-        ValidationComponent::ComplianceReadCommonImpl<ContractState>;
+        RuleEngineComponent::ComplianceReadImpl<ContractState>;
     #[abi(embed_v0)]
     impl ComplianceReadFromImpl =
-        ValidationComponent::ComplianceReadFromCommonImpl<ContractState>;
+        RuleEngineComponent::ComplianceReadFromImpl<ContractState>;
+    #[abi(embed_v0)]
+    impl ValidationRuleEngineImpl =
+        RuleEngineComponent::ValidationRuleEngineImpl<ContractState>;
     #[abi(embed_v0)]
     impl ERC1404Impl = ERC1404Component::ERC1404Impl<ContractState>;
     #[abi(embed_v0)]
@@ -149,6 +158,10 @@ pub mod CommonMock {
         validation: ValidationComponent::Storage,
         #[substorage(v0)]
         erc1404: ERC1404Component::Storage,
+        #[substorage(v0)]
+        rule_engine: RuleEngineComponent::Storage,
+        #[substorage(v0)]
+        reentrancy_guard: ReentrancyGuardComponent::Storage,
         #[substorage(v0)]
         erc20_base: ERC20BaseComponent::Storage,
         #[substorage(v0)]
@@ -182,6 +195,10 @@ pub mod CommonMock {
         ValidationEvent: ValidationComponent::Event,
         #[flat]
         ERC1404Event: ERC1404Component::Event,
+        #[flat]
+        RuleEngineEvent: RuleEngineComponent::Event,
+        #[flat]
+        ReentrancyGuardEvent: ReentrancyGuardComponent::Event,
         #[flat]
         ERC20BaseEvent: ERC20BaseComponent::Event,
         #[flat]

@@ -3,12 +3,14 @@
 //
 // Read order (deliberately different from the revert path, as in CMTAT):
 // spender frozen (5, `_from` only), insufficient active balance (6), deactivated
-// (1), paused (2), from frozen (3), to frozen (4), otherwise 0. The RuleEngine
-// fallback for codes 7-12 is added with the RuleEngine component.
+// (1), paused (2), from frozen (3), to frozen (4), then the RuleEngine if one is
+// set (codes 7-12 and their messages), otherwise 0.
 
 #[starknet::component]
 pub mod ERC1404Component {
+    use core::num::traits::Zero;
     use openzeppelin::introspection::src5::SRC5Component;
+    use openzeppelin::security::ReentrancyGuardComponent;
     use openzeppelin::token::erc20::ERC20Component;
     use starknet::ContractAddress;
     use crate::components::enforcement::EnforcementComponent;
@@ -18,10 +20,15 @@ pub mod ERC1404Component {
     use crate::components::erc20_enforcement::ERC20EnforcementComponent::InternalImpl as ERC20EnforcementInternalImpl;
     use crate::components::pause::PauseComponent;
     use crate::components::pause::PauseComponent::InternalImpl as PauseInternalImpl;
+    use crate::components::rule_engine::RuleEngineComponent;
+    use crate::components::rule_engine::RuleEngineComponent::InternalImpl as RuleEngineInternalImpl;
     use crate::interfaces::erc1404::{
         IERC1404, IERC1404Extend, TRANSFER_OK, TRANSFER_REJECTED_DEACTIVATED,
         TRANSFER_REJECTED_FROM_FROZEN, TRANSFER_REJECTED_FROM_INSUFFICIENT_ACTIVE_BALANCE,
         TRANSFER_REJECTED_PAUSED, TRANSFER_REJECTED_SPENDER_FROZEN, TRANSFER_REJECTED_TO_FROZEN,
+    };
+    use crate::interfaces::rule_engine::{
+        IRuleEngineERC1404Dispatcher, IRuleEngineERC1404DispatcherTrait,
     };
 
     #[storage]
@@ -37,6 +44,8 @@ pub mod ERC1404Component {
         +ERC20Component::ERC20HooksTrait<TContractState>,
         +ERC20BaseComponent::HasComponent<TContractState>,
         +ERC20EnforcementComponent::HasComponent<TContractState>,
+        impl RuleEngine: RuleEngineComponent::HasComponent<TContractState>,
+        +ReentrancyGuardComponent::HasComponent<TContractState>,
         +SRC5Component::HasComponent<TContractState>,
         +Drop<TContractState>,
     > of IERC1404<ComponentState<TContractState>> {
@@ -46,7 +55,13 @@ pub mod ERC1404Component {
             to: ContractAddress,
             value: u256,
         ) -> u8 {
-            self.detect(from, to, value)
+            let code = self.detect(from, to, value);
+            let engine = get_dep_component!(self, RuleEngine).get_rule_engine();
+            if code != TRANSFER_OK || engine.is_zero() {
+                return code;
+            }
+            IRuleEngineERC1404Dispatcher { contract_address: engine }
+                .detect_transfer_restriction(from, to, value)
         }
 
         fn message_for_transfer_restriction(
@@ -67,7 +82,13 @@ pub mod ERC1404Component {
             } else if restriction_code == TRANSFER_REJECTED_FROM_INSUFFICIENT_ACTIVE_BALANCE {
                 "AddrFrom:insufficientActiveBalance"
             } else {
-                "UnknownCode"
+                let engine = get_dep_component!(self, RuleEngine).get_rule_engine();
+                if engine.is_zero() {
+                    "UnknownCode"
+                } else {
+                    IRuleEngineERC1404Dispatcher { contract_address: engine }
+                        .message_for_transfer_restriction(restriction_code)
+                }
             }
         }
     }
@@ -82,6 +103,8 @@ pub mod ERC1404Component {
         +ERC20Component::ERC20HooksTrait<TContractState>,
         +ERC20BaseComponent::HasComponent<TContractState>,
         +ERC20EnforcementComponent::HasComponent<TContractState>,
+        impl RuleEngine: RuleEngineComponent::HasComponent<TContractState>,
+        +ReentrancyGuardComponent::HasComponent<TContractState>,
         +SRC5Component::HasComponent<TContractState>,
         +Drop<TContractState>,
     > of IERC1404Extend<ComponentState<TContractState>> {
@@ -95,7 +118,13 @@ pub mod ERC1404Component {
             if get_dep_component!(self, Enforcement).is_address_frozen(spender) {
                 return TRANSFER_REJECTED_SPENDER_FROZEN;
             }
-            self.detect(from, to, value)
+            let code = self.detect(from, to, value);
+            let engine = get_dep_component!(self, RuleEngine).get_rule_engine();
+            if code != TRANSFER_OK || engine.is_zero() {
+                return code;
+            }
+            IRuleEngineERC1404Dispatcher { contract_address: engine }
+                .detect_transfer_restriction_from(spender, from, to, value)
         }
     }
 
@@ -109,6 +138,8 @@ pub mod ERC1404Component {
         +ERC20Component::ERC20HooksTrait<TContractState>,
         +ERC20BaseComponent::HasComponent<TContractState>,
         impl ERC20Enforcement: ERC20EnforcementComponent::HasComponent<TContractState>,
+        +RuleEngineComponent::HasComponent<TContractState>,
+        +ReentrancyGuardComponent::HasComponent<TContractState>,
         +SRC5Component::HasComponent<TContractState>,
         +Drop<TContractState>,
     > of InternalTrait<TContractState> {

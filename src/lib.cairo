@@ -16,6 +16,7 @@ pub mod components {
     pub mod hooks;
     pub mod mint;
     pub mod pause;
+    pub mod rule_engine;
     pub mod token_attributes;
     pub mod upgrade;
     pub mod validation;
@@ -33,6 +34,7 @@ pub mod interfaces {
     pub mod icmtat;
     pub mod mint;
     pub mod pause;
+    pub mod rule_engine;
     pub mod token_attributes;
     pub mod validation;
 }
@@ -59,5 +61,6 @@ pub mod mocks {
     pub mod forced_burn_mock;
     pub mod pause_mock;
     pub mod rule_engine;
+    pub mod rule_engine_recorder;
     pub mod snapshot_engine;
 }

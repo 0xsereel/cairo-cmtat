@@ -9,6 +9,8 @@ use crate::components::erc20_base::ERC20BaseComponent::CMTATHooksTrait;
 use crate::components::erc20_enforcement::ERC20EnforcementComponent;
 use crate::components::erc20_enforcement::ERC20EnforcementComponent::InternalImpl as ERC20EnforcementInternalImpl;
 use crate::components::pause::PauseComponent;
+use crate::components::rule_engine::RuleEngineComponent;
+use crate::components::rule_engine::RuleEngineComponent::InternalImpl as RuleEngineInternalImpl;
 use crate::components::validation::ValidationComponent;
 use crate::components::validation::ValidationComponent::InternalImpl as ValidationInternalImpl;
 
@@ -67,6 +69,46 @@ pub impl CommonHooksImpl<
         let contract = self.get_contract();
         ERC20Enforcement::get_component(contract).assert_active_balance(from, value);
         Validation::get_component(contract).assert_can_transfer_generic(spender, from, to);
+    }
+
+    fn check_approve(
+        self: @ERC20BaseComponent::ComponentState<TContractState>,
+        owner: ContractAddress,
+        spender: ContractAddress,
+        value: u256,
+    ) {
+        let contract = self.get_contract();
+        Validation::get_component(contract).assert_can_approve(owner, spender, value);
+    }
+}
+
+/// CMTATBaseRuleEngine: active balance, then module checks, then the RuleEngine's
+/// `transferred` (under the reentrancy guard).
+pub impl RuleEngineHooksImpl<
+    TContractState,
+    +ERC20BaseComponent::HasComponent<TContractState>,
+    impl Validation: ValidationComponent::HasComponent<TContractState>,
+    impl ERC20Enforcement: ERC20EnforcementComponent::HasComponent<TContractState>,
+    impl RuleEngine: RuleEngineComponent::HasComponent<TContractState>,
+    +openzeppelin::security::ReentrancyGuardComponent::HasComponent<TContractState>,
+    +openzeppelin::token::erc20::ERC20Component::HasComponent<TContractState>,
+    +openzeppelin::token::erc20::ERC20Component::ERC20HooksTrait<TContractState>,
+    +PauseComponent::HasComponent<TContractState>,
+    +EnforcementComponent::HasComponent<TContractState>,
+    +openzeppelin::introspection::src5::SRC5Component::HasComponent<TContractState>,
+    +Drop<TContractState>,
+> of CMTATHooksTrait<TContractState> {
+    fn check_transferred(
+        ref self: ERC20BaseComponent::ComponentState<TContractState>,
+        spender: ContractAddress,
+        from: ContractAddress,
+        to: ContractAddress,
+        value: u256,
+    ) {
+        let mut contract = self.get_contract_mut();
+        ERC20Enforcement::get_component(@contract).assert_active_balance(from, value);
+        Validation::get_component(@contract).assert_can_transfer_generic(spender, from, to);
+        RuleEngine::get_component_mut(ref contract).transferred(spender, from, to, value);
     }
 
     fn check_approve(
