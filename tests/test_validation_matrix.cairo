@@ -14,6 +14,10 @@
 //
 // Holder = from, RECIPIENT = to, SPENDER = spender. The full matrix runs against
 // CommonMock (CMTATBaseCommon); the Light preset runs the subset it supports.
+//
+// Each case also checks the read path: `can_send` / `can_receive`, `can_transfer`
+// and `can_transfer_from` (true exactly when the matching transfer succeeds) and,
+// on CommonMock, the ERC-1404 code from the read-order model.
 
 use cairo_cmtat::errors;
 use cairo_cmtat::interfaces::burn::{
@@ -23,6 +27,12 @@ use cairo_cmtat::interfaces::burn::{
 };
 use cairo_cmtat::interfaces::enforcement::{
     IERC3643EnforcementDispatcher, IERC3643EnforcementDispatcherTrait,
+};
+use cairo_cmtat::interfaces::erc1404::{
+    IERC1404Dispatcher, IERC1404DispatcherTrait, IERC1404ExtendDispatcher,
+    IERC1404ExtendDispatcherTrait, TRANSFER_OK, TRANSFER_REJECTED_DEACTIVATED,
+    TRANSFER_REJECTED_FROM_FROZEN, TRANSFER_REJECTED_FROM_INSUFFICIENT_ACTIVE_BALANCE,
+    TRANSFER_REJECTED_PAUSED, TRANSFER_REJECTED_SPENDER_FROZEN, TRANSFER_REJECTED_TO_FROZEN,
 };
 use cairo_cmtat::interfaces::erc20_enforcement::{
     IERC7943FungibleEnforcementDispatcher, IERC7943FungibleEnforcementDispatcherTrait,
@@ -36,6 +46,11 @@ use cairo_cmtat::interfaces::mint::{
 use cairo_cmtat::interfaces::pause::{
     IERC3643PauseDispatcher, IERC3643PauseDispatcherTrait, IERC8343Dispatcher,
     IERC8343DispatcherTrait,
+};
+use cairo_cmtat::interfaces::validation::{
+    IERC3643ComplianceReadDispatcher, IERC3643ComplianceReadDispatcherTrait,
+    IERC7551ComplianceDispatcher, IERC7551ComplianceDispatcherTrait,
+    IERC7943FungibleSendReceiveCheckDispatcher, IERC7943FungibleSendReceiveCheckDispatcherTrait,
 };
 use cairo_cmtat::roles::{
     BURNER_FROM_ROLE, BURNER_ROLE, ENFORCER_ROLE, ERC20ENFORCER_ROLE, MINTER_ROLE, PAUSER_ROLE,
@@ -185,6 +200,32 @@ fn expected(op: u8, case: Case) -> Option<Array<felt252>> {
     Option::None
 }
 
+/// ERC-1404 read order: active balance, deactivated, paused, from, to.
+fn expected_code(case: Case) -> u8 {
+    if case.partially_frozen {
+        TRANSFER_REJECTED_FROM_INSUFFICIENT_ACTIVE_BALANCE
+    } else if case.pause == DEACTIVATED {
+        TRANSFER_REJECTED_DEACTIVATED
+    } else if case.pause == PAUSED {
+        TRANSFER_REJECTED_PAUSED
+    } else if case.from_frozen {
+        TRANSFER_REJECTED_FROM_FROZEN
+    } else if case.to_frozen {
+        TRANSFER_REJECTED_TO_FROZEN
+    } else {
+        TRANSFER_OK
+    }
+}
+
+/// `detect_transfer_restriction_from` checks the spender first.
+fn expected_code_from(case: Case) -> u8 {
+    if case.spender_frozen {
+        TRANSFER_REJECTED_SPENDER_FROZEN
+    } else {
+        expected_code(case)
+    }
+}
+
 //
 // Runner
 //
@@ -218,6 +259,42 @@ fn panic_case(op: u8, case: Case, reason: ByteArray) {
         case.partially_frozen,
         reason,
     );
+}
+
+fn check_reads(token: ContractAddress, case: Case, with_erc1404: bool) {
+    let send_receive = IERC7943FungibleSendReceiveCheckDispatcher { contract_address: token };
+    if send_receive.can_send(HOLDER) == case.from_frozen {
+        panic_case(0, case, "can_send");
+    }
+    if send_receive.can_receive(RECIPIENT) == case.to_frozen {
+        panic_case(0, case, "can_receive");
+    }
+    let can_transfer = IERC3643ComplianceReadDispatcher { contract_address: token }
+        .can_transfer(HOLDER, RECIPIENT, 1);
+    if can_transfer != expected(TRANSFER, case).is_none() {
+        panic_case(TRANSFER, case, "can_transfer disagrees with transfer");
+    }
+    let can_transfer_from = IERC7551ComplianceDispatcher { contract_address: token }
+        .can_transfer_from(SPENDER, HOLDER, RECIPIENT, 1);
+    if can_transfer_from != expected(TRANSFER_FROM, case).is_none() {
+        panic_case(TRANSFER_FROM, case, "can_transfer_from disagrees with transfer_from");
+    }
+    if with_erc1404 {
+        let code = IERC1404Dispatcher { contract_address: token }
+            .detect_transfer_restriction(HOLDER, RECIPIENT, 1);
+        if code != expected_code(case) {
+            panic_case(TRANSFER, case, "detect_transfer_restriction");
+        }
+        let code_from = IERC1404ExtendDispatcher { contract_address: token }
+            .detect_transfer_restriction_from(SPENDER, HOLDER, RECIPIENT, 1);
+        if code_from != expected_code_from(case) {
+            panic_case(TRANSFER_FROM, case, "detect_transfer_restriction_from");
+        }
+        // The read and revert paths agree on whether a transfer is allowed.
+        if (code == TRANSFER_OK) != can_transfer {
+            panic_case(TRANSFER, case, "detect and can_transfer disagree");
+        }
+    }
 }
 
 fn grant(token: ContractAddress, role: felt252, account: ContractAddress) {
@@ -332,6 +409,7 @@ fn run_common(pause: u8) {
     for case in cases(pause, true) {
         let token = deploy_common();
         apply_case(token, case);
+        check_reads(token, case, true);
         for op in COMMON_OPS.span() {
             run_op(token, *op, case);
         }
@@ -376,6 +454,7 @@ fn run_light(pause: u8) {
     for case in cases(pause, false) {
         let token = deploy_light();
         apply_case(token, case);
+        check_reads(token, case, false);
         for op in LIGHT_OPS.span() {
             run_op(token, *op, case);
         }

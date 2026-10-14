@@ -8,6 +8,7 @@ pub mod components {
     pub mod access;
     pub mod burn;
     pub mod enforcement;
+    pub mod erc1404;
     pub mod erc20_base;
     pub mod erc20_enforcement;
     pub mod extra_information;
@@ -24,6 +25,7 @@ pub mod components {
 pub mod interfaces {
     pub mod burn;
     pub mod enforcement;
+    pub mod erc1404;
     pub mod erc1643;
     pub mod erc20_base;
     pub mod erc20_enforcement;
@@ -32,6 +34,7 @@ pub mod interfaces {
     pub mod mint;
     pub mod pause;
     pub mod token_attributes;
+    pub mod validation;
 }
 
 // Deployable tokens composed from the components

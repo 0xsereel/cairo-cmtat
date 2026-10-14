@@ -12,6 +12,7 @@ pub mod CommonMock {
     use crate::components::access::CMTATAccessControlComponent;
     use crate::components::burn::BurnComponent;
     use crate::components::enforcement::EnforcementComponent;
+    use crate::components::erc1404::ERC1404Component;
     use crate::components::erc20_base::ERC20BaseComponent;
     use crate::components::erc20_enforcement::ERC20EnforcementComponent;
     use crate::components::extra_information::ExtraInformationComponent;
@@ -34,6 +35,7 @@ pub mod CommonMock {
         path: ERC20EnforcementComponent, storage: erc20_enforcement, event: ERC20EnforcementEvent,
     );
     component!(path: ValidationComponent, storage: validation, event: ValidationEvent);
+    component!(path: ERC1404Component, storage: erc1404, event: ERC1404Event);
     component!(path: ERC20BaseComponent, storage: erc20_base, event: ERC20BaseEvent);
     component!(path: MintComponent, storage: mint, event: MintEvent);
     component!(path: BurnComponent, storage: burn, event: BurnEvent);
@@ -112,6 +114,21 @@ pub mod CommonMock {
     impl CMTATBaseImpl = ExtraInformationComponent::CMTATBaseImpl<ContractState>;
     impl ExtraInformationInternalImpl = ExtraInformationComponent::InternalImpl<ContractState>;
 
+    // Compliance reads and ERC-1404
+    #[abi(embed_v0)]
+    impl ERC7943SendReceiveImpl =
+        ValidationComponent::ERC7943SendReceiveImpl<ContractState>;
+    #[abi(embed_v0)]
+    impl ComplianceReadImpl =
+        ValidationComponent::ComplianceReadCommonImpl<ContractState>;
+    #[abi(embed_v0)]
+    impl ComplianceReadFromImpl =
+        ValidationComponent::ComplianceReadFromCommonImpl<ContractState>;
+    #[abi(embed_v0)]
+    impl ERC1404Impl = ERC1404Component::ERC1404Impl<ContractState>;
+    #[abi(embed_v0)]
+    impl ERC1404ExtendImpl = ERC1404Component::ERC1404ExtendImpl<ContractState>;
+
     #[storage]
     struct Storage {
         #[substorage(v0)]
@@ -130,6 +147,8 @@ pub mod CommonMock {
         erc20_enforcement: ERC20EnforcementComponent::Storage,
         #[substorage(v0)]
         validation: ValidationComponent::Storage,
+        #[substorage(v0)]
+        erc1404: ERC1404Component::Storage,
         #[substorage(v0)]
         erc20_base: ERC20BaseComponent::Storage,
         #[substorage(v0)]
@@ -161,6 +180,8 @@ pub mod CommonMock {
         ERC20EnforcementEvent: ERC20EnforcementComponent::Event,
         #[flat]
         ValidationEvent: ValidationComponent::Event,
+        #[flat]
+        ERC1404Event: ERC1404Component::Event,
         #[flat]
         ERC20BaseEvent: ERC20BaseComponent::Event,
         #[flat]

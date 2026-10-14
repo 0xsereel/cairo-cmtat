@@ -70,6 +70,17 @@ pub mod CMTATLight {
     impl ERC8343Impl = PauseComponent::ERC8343Impl<ContractState>;
     impl PauseInternalImpl = PauseComponent::InternalImpl<ContractState>;
 
+    // Compliance reads (module checks only)
+    #[abi(embed_v0)]
+    impl ERC7943SendReceiveImpl =
+        ValidationComponent::ERC7943SendReceiveImpl<ContractState>;
+    #[abi(embed_v0)]
+    impl ComplianceReadImpl =
+        ValidationComponent::ComplianceReadCoreImpl<ContractState>;
+    #[abi(embed_v0)]
+    impl ComplianceReadFromImpl =
+        ValidationComponent::ComplianceReadFromCoreImpl<ContractState>;
+
     // Address freeze
     #[abi(embed_v0)]
     impl EnforcementImpl = EnforcementComponent::EnforcementImpl<ContractState>;
