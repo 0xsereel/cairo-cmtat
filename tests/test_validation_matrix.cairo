@@ -13,7 +13,8 @@
 // - forced_burn (Light): requires `from` frozen, nothing else.
 //
 // Holder = from, RECIPIENT = to, SPENDER = spender. The full matrix runs against
-// CommonMock (CMTATBaseCommon); the Light preset runs the subset it supports;
+// CommonMock (CMTATBaseCommon) and the Standard preset; the Light preset runs the
+// subset it supports;
 // AllowlistMock runs it with every party listed, so the allowlist must not
 // weaken any pause or freeze check.
 //
@@ -528,4 +529,43 @@ fn allowlist_matrix_paused() {
 #[test]
 fn allowlist_matrix_deactivated() {
     run_allowlist(DEACTIVATED);
+}
+
+//
+// CMTATStandard preset: full matrix, with ERC-1404 reads
+//
+
+fn deploy_standard_funded() -> ContractAddress {
+    let token = crate::utils::deploy_standard(ZERO);
+    grant_common_roles(token);
+    grant(token, BURNER_FROM_ROLE, SPENDER);
+    start_cheat_caller_address(token, MINTER);
+    IERC3643MintDispatcher { contract_address: token }.mint(HOLDER, SUPPLY);
+    token
+}
+
+fn run_standard(pause: u8) {
+    for case in cases(pause, true) {
+        let token = deploy_standard_funded();
+        apply_case(token, case);
+        check_reads(token, case, true);
+        for op in COMMON_OPS.span() {
+            run_op(token, *op, case);
+        }
+    }
+}
+
+#[test]
+fn standard_matrix_not_paused() {
+    run_standard(NOT_PAUSED);
+}
+
+#[test]
+fn standard_matrix_paused() {
+    run_standard(PAUSED);
+}
+
+#[test]
+fn standard_matrix_deactivated() {
+    run_standard(DEACTIVATED);
 }

@@ -21,6 +21,7 @@ pub mod CMTATLight {
     use crate::components::token_attributes::TokenAttributesComponent;
     use crate::components::upgrade::UpgradeComponent;
     use crate::components::validation::ValidationComponent;
+    use crate::interfaces::constructor::ERC20Attributes;
 
     // OpenZeppelin
     component!(path: ERC20Component, storage: erc20, event: ERC20Event);
@@ -188,14 +189,11 @@ pub mod CMTATLight {
 
     #[constructor]
     fn constructor(
-        ref self: ContractState,
-        admin: ContractAddress,
-        name: ByteArray,
-        symbol: ByteArray,
-        decimals: u8,
+        ref self: ContractState, admin: ContractAddress, erc20_attributes: ERC20Attributes,
     ) {
         self.cmtat_access.initializer(admin);
         self.pause.initializer();
+        let ERC20Attributes { name, symbol, decimals } = erc20_attributes;
         self.erc20_base.initializer(name, symbol, decimals);
     }
 }

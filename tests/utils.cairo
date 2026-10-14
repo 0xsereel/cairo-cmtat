@@ -45,3 +45,30 @@ pub fn assert_reverted_with<T, +Drop<T>>(
         Result::Err(panic_data) => assert_eq!(panic_data, full),
     }
 }
+
+/// Deploys `CMTATStandard` with `ADMIN` as default admin and `rule_engine` (may be
+/// zero). Mints nothing.
+pub fn deploy_standard(rule_engine: ContractAddress) -> ContractAddress {
+    let mut calldata = array![];
+    calldata.append_serde(ADMIN);
+    calldata.append_serde(standard_erc20_attributes());
+    calldata.append_serde(standard_extra_information());
+    calldata.append_serde(rule_engine);
+    openzeppelin_testing::declare_and_deploy("CMTATStandard", calldata)
+}
+
+pub fn standard_erc20_attributes() -> cairo_cmtat::interfaces::constructor::ERC20Attributes {
+    cairo_cmtat::interfaces::constructor::ERC20Attributes {
+        name: "Standard Token", symbol: "STD", decimals: 0,
+    }
+}
+
+pub fn standard_extra_information() -> cairo_cmtat::interfaces::constructor::ExtraInformationAttributes {
+    cairo_cmtat::interfaces::constructor::ExtraInformationAttributes {
+        token_id: "CH0000000000",
+        terms: cairo_cmtat::interfaces::erc1643::DocumentInfo {
+            name: "Terms", uri: "ipfs://terms", document_hash: 0xabcd,
+        },
+        information: "Standard CMTAT",
+    }
+}

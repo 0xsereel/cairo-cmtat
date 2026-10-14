@@ -30,6 +30,7 @@ pub mod components {
 pub mod interfaces {
     pub mod allowlist;
     pub mod burn;
+    pub mod constructor;
     pub mod debt;
     pub mod enforcement;
     pub mod erc1404;
@@ -49,13 +50,13 @@ pub mod interfaces {
 // Deployable tokens composed from the components
 pub mod presets {
     pub mod light;
+    pub mod standard;
 }
 
 // Legacy contracts, removed as each preset lands
 pub mod contracts {
     pub mod allowlist_cmtat;
     pub mod debt_cmtat;
-    pub mod standard_cmtat;
 }
 
 // Test doubles and sample engines; production engines live in separate repositories
