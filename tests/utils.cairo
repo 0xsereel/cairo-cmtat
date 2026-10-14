@@ -72,3 +72,13 @@ pub fn standard_extra_information() -> cairo_cmtat::interfaces::constructor::Ext
         information: "Standard CMTAT",
     }
 }
+
+/// Deploys `CMTATAllowlist` with `ADMIN` as default admin. Mints nothing; the
+/// allowlist starts enabled and empty.
+pub fn deploy_allowlist_preset() -> ContractAddress {
+    let mut calldata = array![];
+    calldata.append_serde(ADMIN);
+    calldata.append_serde(standard_erc20_attributes());
+    calldata.append_serde(standard_extra_information());
+    openzeppelin_testing::declare_and_deploy("CMTATAllowlist", calldata)
+}

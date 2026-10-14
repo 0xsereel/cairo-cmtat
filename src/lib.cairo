@@ -49,20 +49,19 @@ pub mod interfaces {
 
 // Deployable tokens composed from the components
 pub mod presets {
+    pub mod allowlist;
     pub mod light;
     pub mod standard;
 }
 
 // Legacy contracts, removed as each preset lands
 pub mod contracts {
-    pub mod allowlist_cmtat;
     pub mod debt_cmtat;
 }
 
 // Test doubles and sample engines; production engines live in separate repositories
 pub mod mocks {
     pub mod access_control_mock;
-    pub mod allowlist_mock;
     pub mod common_mock;
     pub mod enforcement_mock;
     pub mod erc20_enforcement_mock;

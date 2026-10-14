@@ -1,14 +1,19 @@
 // SPDX-License-Identifier: MPL-2.0
-// Mock equivalent to CMTATBaseAllowlist: CMTATBaseCommon components, documents and
-// the allowlist, with AllowlistHooksImpl as the check chain. No RuleEngine,
-// ERC-1404 or burn-from. The allowlist is enabled at deployment and the
-// constructor mints without checks.
+// CMTAT Allowlist (CMTATBaseAllowlist): the Common modules (pause / ERC-8343,
+// address and partial freeze with forced transfer, mint, burn, token attributes,
+// extra information, documents) plus an allowlist, enabled at deployment. No
+// RuleEngine, ERC-1404, burn-from or snapshot. Upgradeable under DEFAULT_ADMIN_ROLE.
+//
+// Check order: active balance, allowlist, then pause / freeze (AllowlistHooksImpl).
+// Not ported from Solidity: ERC-2771 (Starknet accounts and paymasters cover
+// meta-transactions).
 
 #[starknet::contract]
-pub mod AllowlistMock {
+pub mod CMTATAllowlist {
     use openzeppelin::access::accesscontrol::AccessControlComponent;
     use openzeppelin::introspection::src5::SRC5Component;
     use openzeppelin::token::erc20::{ERC20Component, ERC20HooksEmptyImpl};
+    use openzeppelin::upgrades::UpgradeableComponent;
     use starknet::ContractAddress;
     use crate::components::access::CMTATAccessControlComponent;
     use crate::components::allowlist::AllowlistComponent;
@@ -22,12 +27,16 @@ pub mod AllowlistMock {
     use crate::components::mint::MintComponent;
     use crate::components::pause::PauseComponent;
     use crate::components::token_attributes::TokenAttributesComponent;
+    use crate::components::upgrade::UpgradeComponent;
     use crate::components::validation::ValidationComponent;
-    use crate::interfaces::erc1643::DocumentInfo;
+    use crate::interfaces::constructor::{ERC20Attributes, ExtraInformationAttributes};
 
+    // OpenZeppelin
     component!(path: ERC20Component, storage: erc20, event: ERC20Event);
     component!(path: AccessControlComponent, storage: access_control, event: AccessControlEvent);
     component!(path: SRC5Component, storage: src5, event: SRC5Event);
+    component!(path: UpgradeableComponent, storage: upgradeable, event: UpgradeableEvent);
+    // CMTAT
     component!(
         path: CMTATAccessControlComponent, storage: cmtat_access, event: CMTATAccessControlEvent,
     );
@@ -38,7 +47,6 @@ pub mod AllowlistMock {
     );
     component!(path: ValidationComponent, storage: validation, event: ValidationEvent);
     component!(path: AllowlistComponent, storage: allowlist, event: AllowlistEvent);
-    component!(path: DocumentsComponent, storage: documents, event: DocumentsEvent);
     component!(path: ERC20BaseComponent, storage: erc20_base, event: ERC20BaseEvent);
     component!(path: MintComponent, storage: mint, event: MintEvent);
     component!(path: BurnComponent, storage: burn, event: BurnEvent);
@@ -48,37 +56,51 @@ pub mod AllowlistMock {
     component!(
         path: ExtraInformationComponent, storage: extra_information, event: ExtraInformationEvent,
     );
+    component!(path: DocumentsComponent, storage: documents, event: DocumentsEvent);
+    component!(path: UpgradeComponent, storage: upgrade, event: UpgradeEvent);
 
     // ERC-20
     #[abi(embed_v0)]
     impl ERC20Impl = ERC20BaseComponent::ERC20Impl<ContractState>;
     #[abi(embed_v0)]
+    impl ERC20CamelOnlyImpl = ERC20BaseComponent::ERC20CamelOnlyImpl<ContractState>;
+    #[abi(embed_v0)]
     impl ERC20MetadataImpl = ERC20BaseComponent::ERC20MetadataImpl<ContractState>;
+    #[abi(embed_v0)]
+    impl ERC20BatchBalanceImpl =
+        ERC20BaseComponent::ERC20BatchBalanceImpl<ContractState>;
     impl ERC20BaseInternalImpl = ERC20BaseComponent::InternalImpl<ContractState>;
-    impl ERC20InternalImpl = ERC20Component::InternalImpl<ContractState>;
 
-    // Access control
+    // Access control and introspection
     #[abi(embed_v0)]
     impl AccessControlImpl =
         CMTATAccessControlComponent::AccessControlImpl<ContractState>;
     impl AccessControlInternalImpl = CMTATAccessControlComponent::InternalImpl<ContractState>;
+    #[abi(embed_v0)]
+    impl SRC5Impl = SRC5Component::SRC5Impl<ContractState>;
 
-    // Pause
+    // Pause and ERC-8343
     #[abi(embed_v0)]
     impl PauseImpl = PauseComponent::PauseImpl<ContractState>;
     #[abi(embed_v0)]
     impl ERC8343Impl = PauseComponent::ERC8343Impl<ContractState>;
     impl PauseInternalImpl = PauseComponent::InternalImpl<ContractState>;
 
-    // Enforcement
+    // Address freeze, partial freeze and forced transfer
     #[abi(embed_v0)]
     impl EnforcementImpl = EnforcementComponent::EnforcementImpl<ContractState>;
+    #[abi(embed_v0)]
+    impl CMTATEnforcementImpl =
+        EnforcementComponent::CMTATEnforcementImpl<ContractState>;
     #[abi(embed_v0)]
     impl ERC3643ERC20EnforcementImpl =
         ERC20EnforcementComponent::ERC3643ERC20EnforcementImpl<ContractState>;
     #[abi(embed_v0)]
     impl ERC7943FungibleEnforcementImpl =
         ERC20EnforcementComponent::ERC7943FungibleEnforcementImpl<ContractState>;
+    #[abi(embed_v0)]
+    impl ERC7551ERC20EnforcementImpl =
+        ERC20EnforcementComponent::ERC7551ERC20EnforcementImpl<ContractState>;
 
     // Allowlist and compliance reads
     #[abi(embed_v0)]
@@ -93,19 +115,41 @@ pub mod AllowlistMock {
         AllowlistComponent::ComplianceReadFromImpl<ContractState>;
     impl AllowlistInternalImpl = AllowlistComponent::InternalImpl<ContractState>;
 
-    // Mint and burn
+    // Mint
     #[abi(embed_v0)]
     impl ERC3643MintImpl = MintComponent::ERC3643MintImpl<ContractState>;
     #[abi(embed_v0)]
     impl ERC3643BatchTransferImpl =
         MintComponent::ERC3643BatchTransferImpl<ContractState>;
     #[abi(embed_v0)]
-    impl ERC3643BurnImpl = BurnComponent::ERC3643BurnImpl<ContractState>;
+    impl ERC5679MintImpl = MintComponent::ERC5679MintImpl<ContractState>;
 
-    // Extra information
+    // Burn
+    #[abi(embed_v0)]
+    impl ERC3643BurnImpl = BurnComponent::ERC3643BurnImpl<ContractState>;
+    #[abi(embed_v0)]
+    impl ERC5679BurnImpl = BurnComponent::ERC5679BurnImpl<ContractState>;
+    #[abi(embed_v0)]
+    impl BurnBatchImpl = BurnComponent::BurnBatchImpl<ContractState>;
+    #[abi(embed_v0)]
+    impl BurnMintImpl = BurnComponent::BurnMintImpl<ContractState>;
+
+    // Token attributes, version, extra information and documents
+    #[abi(embed_v0)]
+    impl ERC3643ERC20BaseImpl =
+        TokenAttributesComponent::ERC3643ERC20BaseImpl<ContractState>;
+    #[abi(embed_v0)]
+    impl ERC3643VersionImpl =
+        TokenAttributesComponent::ERC3643VersionImpl<ContractState>;
     #[abi(embed_v0)]
     impl CMTATBaseImpl = ExtraInformationComponent::CMTATBaseImpl<ContractState>;
     impl ExtraInformationInternalImpl = ExtraInformationComponent::InternalImpl<ContractState>;
+    #[abi(embed_v0)]
+    impl ERC1643Impl = DocumentsComponent::ERC1643Impl<ContractState>;
+
+    // Upgrades
+    #[abi(embed_v0)]
+    impl UpgradeableImpl = UpgradeComponent::UpgradeableImpl<ContractState>;
 
     #[storage]
     struct Storage {
@@ -115,6 +159,8 @@ pub mod AllowlistMock {
         access_control: AccessControlComponent::Storage,
         #[substorage(v0)]
         src5: SRC5Component::Storage,
+        #[substorage(v0)]
+        upgradeable: UpgradeableComponent::Storage,
         #[substorage(v0)]
         cmtat_access: CMTATAccessControlComponent::Storage,
         #[substorage(v0)]
@@ -128,8 +174,6 @@ pub mod AllowlistMock {
         #[substorage(v0)]
         allowlist: AllowlistComponent::Storage,
         #[substorage(v0)]
-        documents: DocumentsComponent::Storage,
-        #[substorage(v0)]
         erc20_base: ERC20BaseComponent::Storage,
         #[substorage(v0)]
         mint: MintComponent::Storage,
@@ -139,6 +183,10 @@ pub mod AllowlistMock {
         token_attributes: TokenAttributesComponent::Storage,
         #[substorage(v0)]
         extra_information: ExtraInformationComponent::Storage,
+        #[substorage(v0)]
+        documents: DocumentsComponent::Storage,
+        #[substorage(v0)]
+        upgrade: UpgradeComponent::Storage,
     }
 
     #[event]
@@ -150,6 +198,8 @@ pub mod AllowlistMock {
         AccessControlEvent: AccessControlComponent::Event,
         #[flat]
         SRC5Event: SRC5Component::Event,
+        #[flat]
+        UpgradeableEvent: UpgradeableComponent::Event,
         #[flat]
         CMTATAccessControlEvent: CMTATAccessControlComponent::Event,
         #[flat]
@@ -163,8 +213,6 @@ pub mod AllowlistMock {
         #[flat]
         AllowlistEvent: AllowlistComponent::Event,
         #[flat]
-        DocumentsEvent: DocumentsComponent::Event,
-        #[flat]
         ERC20BaseEvent: ERC20BaseComponent::Event,
         #[flat]
         MintEvent: MintComponent::Event,
@@ -174,27 +222,27 @@ pub mod AllowlistMock {
         TokenAttributesEvent: TokenAttributesComponent::Event,
         #[flat]
         ExtraInformationEvent: ExtraInformationComponent::Event,
+        #[flat]
+        DocumentsEvent: DocumentsComponent::Event,
+        #[flat]
+        UpgradeEvent: UpgradeComponent::Event,
     }
 
     #[constructor]
     fn constructor(
         ref self: ContractState,
-        decimals: u8,
-        initial_supply: u256,
-        recipient: ContractAddress,
         admin: ContractAddress,
+        erc20_attributes: ERC20Attributes,
+        extra_information_attributes: ExtraInformationAttributes,
     ) {
-        self.erc20_base.initializer("Mock", "MCK", decimals);
         self.cmtat_access.initializer(admin);
         self.pause.initializer();
+        let ERC20Attributes { name, symbol, decimals } = erc20_attributes;
+        self.erc20_base.initializer(name, symbol, decimals);
+        let ExtraInformationAttributes {
+            token_id, terms, information,
+        } = extra_information_attributes;
+        self.extra_information.initializer(token_id, terms, information);
         self.allowlist.initializer();
-        self
-            .extra_information
-            .initializer(
-                "TOKEN-ID",
-                DocumentInfo { name: "Terms", uri: "https://terms", document_hash: 0x1234 },
-                "information",
-            );
-        self.erc20.mint(recipient, initial_supply);
     }
 }

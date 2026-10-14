@@ -15,7 +15,7 @@
 // Holder = from, RECIPIENT = to, SPENDER = spender. The full matrix runs against
 // CommonMock (CMTATBaseCommon) and the Standard preset; the Light preset runs the
 // subset it supports;
-// AllowlistMock runs it with every party listed, so the allowlist must not
+// the Allowlist preset runs it with every party listed, so the allowlist must not
 // weaken any pause or freeze check.
 //
 // Each case also checks the read path: `can_send` / `can_receive`, `can_transfer`
@@ -486,22 +486,19 @@ fn light_matrix_deactivated() {
 }
 
 //
-// AllowlistMock (CMTATBaseAllowlist), every party listed: identical to CommonMock
+// CMTATAllowlist preset, every party listed: identical to CommonMock
 //
 
 fn deploy_allowlist() -> ContractAddress {
-    let mut calldata = array![];
-    calldata.append_serde(18_u8);
-    calldata.append_serde(SUPPLY);
-    calldata.append_serde(HOLDER);
-    calldata.append_serde(ADMIN);
-    let token = openzeppelin_testing::declare_and_deploy("AllowlistMock", calldata);
+    let token = crate::utils::deploy_allowlist_preset();
     grant_common_roles(token);
     start_cheat_caller_address(token, ADMIN);
     IAllowlistModuleDispatcher { contract_address: token }
         .batch_set_address_allowlist(
             array![HOLDER, RECIPIENT, SPENDER].span(), array![true, true, true].span(),
         );
+    start_cheat_caller_address(token, MINTER);
+    IERC3643MintDispatcher { contract_address: token }.mint(HOLDER, SUPPLY);
     token
 }
 
