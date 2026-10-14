@@ -3,6 +3,7 @@
 // one into scope.
 
 use starknet::ContractAddress;
+use starknet::storage::{StorageMapReadAccess, StoragePointerReadAccess};
 use crate::components::allowlist::AllowlistComponent;
 use crate::components::allowlist::AllowlistComponent::InternalImpl as AllowlistInternalImpl;
 use crate::components::enforcement::EnforcementComponent;
@@ -15,6 +16,8 @@ use crate::components::pause::PauseComponent;
 use crate::components::pause::PauseComponent::InternalImpl as PauseInternalImpl;
 use crate::components::rule_engine::RuleEngineComponent;
 use crate::components::rule_engine::RuleEngineComponent::InternalImpl as RuleEngineInternalImpl;
+use crate::components::snapshot::SnapshotComponent;
+use crate::components::snapshot::SnapshotComponent::InternalImpl as SnapshotInternalImpl;
 use crate::components::validation::ValidationComponent;
 use crate::components::validation::ValidationComponent::InternalImpl as ValidationInternalImpl;
 
@@ -173,5 +176,28 @@ pub impl AllowlistHooksImpl<
         if !allowlist.is_allowed(spender) || enforcement.is_address_frozen(spender) {
             crate::errors::cannot_send(spender);
         }
+    }
+}
+
+/// OpenZeppelin ERC-20 hook for presets with a SnapshotEngine (CMTATBaseSnapshot):
+/// notifies the engine after every balance change.
+pub impl SnapshotERC20HooksImpl<
+    TContractState,
+    impl Snapshot: SnapshotComponent::HasComponent<TContractState>,
+    +openzeppelin::token::erc20::ERC20Component::HasComponent<TContractState>,
+    +Drop<TContractState>,
+> of openzeppelin::token::erc20::ERC20Component::ERC20HooksTrait<TContractState> {
+    fn after_update(
+        ref self: openzeppelin::token::erc20::ERC20Component::ComponentState<TContractState>,
+        from: ContractAddress,
+        recipient: ContractAddress,
+        amount: u256,
+    ) {
+        let balance_from = self.ERC20_balances.read(from);
+        let balance_to = self.ERC20_balances.read(recipient);
+        let total_supply = self.ERC20_total_supply.read();
+        let contract = self.get_contract();
+        Snapshot::get_component(contract)
+            .operate_on_transfer(from, recipient, amount, balance_from, balance_to, total_supply);
     }
 }

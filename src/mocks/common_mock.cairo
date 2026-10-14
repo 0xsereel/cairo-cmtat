@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: MPL-2.0
-// Full-core mock, equivalent to CMTATBaseERC1404: every CMTATBaseCommon component
-// plus the RuleEngine hook and ERC-1404, with RuleEngineHooksImpl as the check
-// chain. No RuleEngine is set at deployment. The constructor mints without checks.
+// Full-core mock: every CMTATBaseCommon component plus the RuleEngine hook,
+// ERC-1404, documents and the SnapshotEngine callback, with RuleEngineHooksImpl as
+// the check chain. No engine is set at deployment. The constructor mints without
+// checks.
 
 #[starknet::contract]
 pub mod CommonMock {
     use openzeppelin::access::accesscontrol::AccessControlComponent;
     use openzeppelin::introspection::src5::SRC5Component;
     use openzeppelin::security::ReentrancyGuardComponent;
-    use openzeppelin::token::erc20::{ERC20Component, ERC20HooksEmptyImpl};
+    use openzeppelin::token::erc20::ERC20Component;
     use starknet::ContractAddress;
     use crate::components::access::CMTATAccessControlComponent;
     use crate::components::burn::BurnComponent;
@@ -18,10 +19,11 @@ pub mod CommonMock {
     use crate::components::erc20_base::ERC20BaseComponent;
     use crate::components::erc20_enforcement::ERC20EnforcementComponent;
     use crate::components::extra_information::ExtraInformationComponent;
-    use crate::components::hooks::RuleEngineHooksImpl;
+    use crate::components::hooks::{RuleEngineHooksImpl, SnapshotERC20HooksImpl};
     use crate::components::mint::MintComponent;
     use crate::components::pause::PauseComponent;
     use crate::components::rule_engine::RuleEngineComponent;
+    use crate::components::snapshot::SnapshotComponent;
     use crate::components::token_attributes::TokenAttributesComponent;
     use crate::components::validation::ValidationComponent;
     use crate::interfaces::erc1643::DocumentInfo;
@@ -41,6 +43,7 @@ pub mod CommonMock {
     component!(path: ERC1404Component, storage: erc1404, event: ERC1404Event);
     component!(path: RuleEngineComponent, storage: rule_engine, event: RuleEngineEvent);
     component!(path: DocumentsComponent, storage: documents, event: DocumentsEvent);
+    component!(path: SnapshotComponent, storage: snapshot, event: SnapshotEvent);
     component!(
         path: ReentrancyGuardComponent, storage: reentrancy_guard, event: ReentrancyGuardEvent,
     );
@@ -144,6 +147,11 @@ pub mod CommonMock {
     #[abi(embed_v0)]
     impl ERC1643Impl = DocumentsComponent::ERC1643Impl<ContractState>;
 
+    // Snapshot engine
+    #[abi(embed_v0)]
+    impl SnapshotEngineModuleImpl =
+        SnapshotComponent::SnapshotEngineModuleImpl<ContractState>;
+
     #[storage]
     struct Storage {
         #[substorage(v0)]
@@ -168,6 +176,8 @@ pub mod CommonMock {
         rule_engine: RuleEngineComponent::Storage,
         #[substorage(v0)]
         documents: DocumentsComponent::Storage,
+        #[substorage(v0)]
+        snapshot: SnapshotComponent::Storage,
         #[substorage(v0)]
         reentrancy_guard: ReentrancyGuardComponent::Storage,
         #[substorage(v0)]
@@ -207,6 +217,8 @@ pub mod CommonMock {
         RuleEngineEvent: RuleEngineComponent::Event,
         #[flat]
         DocumentsEvent: DocumentsComponent::Event,
+        #[flat]
+        SnapshotEvent: SnapshotComponent::Event,
         #[flat]
         ReentrancyGuardEvent: ReentrancyGuardComponent::Event,
         #[flat]

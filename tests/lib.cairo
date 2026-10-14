@@ -15,5 +15,6 @@ mod test_light;
 mod test_mint;
 mod test_pause;
 mod test_rule_engine;
+mod test_snapshot;
 mod test_validation_matrix;
 pub mod utils;
