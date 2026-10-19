@@ -226,6 +226,60 @@ fn message_for_transfer_restriction(self: @ContractState, restriction_code: Stan
 
 ---
 
+## Interface Introspection (SRC5)
+
+Each preset registers the same interfaces through SRC5 (`supports_interface`) that its CMTAT v3.3.0 base reports through ERC-165 (`supportsInterface`).
+
+### Interface ids
+
+An id is the XOR of the SNIP-5 extended selectors of its functions. Each selector is `sn_keccak` of the function's signature string, built with these rules:
+
+- Type names are short: `ContractAddress`, `felt252`, `u8`, `u64`.
+- A struct is written as the tuple of its fields:
+  - `u256` → `(u128,u128)`
+  - `ByteArray` → `(Array<bytes31>,felt252,u32)`
+  - `Span<T>` → `(@Array<T>)`
+- An enum is written as `E(...)`, so `bool` → `E((),())`.
+- The output follows `->`, and is omitted when the function returns nothing. The `self` parameter is not included.
+
+The ids use the Cairo function names. Where a Cairo name differs from CMTAT's, the CMTAT overload is in brackets, e.g. `mint_with_data` (`mint(account, value, data)`). CMTAT's ERC-165 id covers the same functions.
+
+| Constant | Value | CMTAT ERC-165 id | Extended signatures |
+|---|---|---|---|
+| `ISRC5_ID` (OpenZeppelin) | `0x3f918d17e5ee77373b56385708f855659a07f75997f365cf87748628532a055` | `0x01ffc9a7` | `supports_interface(felt252)->E((),())` |
+| `IACCESSCONTROL_ID` (OpenZeppelin) | `0x23700be02858dbe2ac4dc9c9f66d0b6b0ed81ec7f970ca6844500a56ff61751` | `0x7965db0b` | OpenZeppelin AccessControl |
+| `IERC8343_ID` | `0xb0170a1ae08515ecaede32d780ec7e7d7dc84266f5e007cf6411db91ff8b` | `0xe9cd80b0` | `deactivate_contract()`<br>`deactivated()->E((),())` |
+| `IERC5679_ID` | `0x33c89e5cd6ccac5fc9f984d94defdfc99b2cadda15b0422f41b9b848de233c8` | `0xd0017968` | `mint_with_data(ContractAddress,(u128,u128),(@Array<felt252>))` (`mint(account, value, data)`)<br>`burn_with_data(ContractAddress,(u128,u128),(@Array<felt252>))` (`burn(account, value, data)`) |
+| `IERC7943_ID` | `0x14e4423410d8cc56f38ff233c6d8d427700f0c7929a1ef8c0c9d117955b3ec1` | `0x3edbb4c4` | `get_frozen_tokens(ContractAddress)->(u128,u128)`<br>`set_frozen_tokens(ContractAddress,(u128,u128))->E((),())`<br>`forced_transfer(ContractAddress,ContractAddress,(u128,u128))->E((),())`<br>`can_send(ContractAddress)->E((),())`<br>`can_receive(ContractAddress)->E((),())`<br>`can_transfer(ContractAddress,ContractAddress,(u128,u128))->E((),())` |
+| `IERC1643_ID` | `0x1a10ec61334b275b2f19413a43f011e7465e9f29c94a34b07b7d33c2bb93d50` | `0xecfecec8` | `get_document(felt252)->((Array<bytes31>,felt252,u32),(u128,u128),u64)`<br>`get_all_documents()->Array<felt252>`<br>`set_document(felt252,(Array<bytes31>,felt252,u32),(u128,u128))`<br>`remove_document(felt252)` |
+| `IERC1404_ID` | `0x3a3c667090ad0aa8f47799a4995ee74f3ca62bdaf5d64d75cd41596255f182a` | — | `detect_transfer_restriction(ContractAddress,ContractAddress,(u128,u128))->u8`<br>`message_for_transfer_restriction(u8)->(Array<bytes31>,felt252,u32)` |
+| `IERC1404_EXTEND_ID` | `0xff711fc962f6084c61e8a81115059929cf17dc2fe08b83e577453465d0e7fe` | `0x78a8de7d` | the two ERC-1404 functions, plus<br>`detect_transfer_restriction_from(ContractAddress,ContractAddress,ContractAddress,(u128,u128))->u8` |
+
+Notes:
+- `IERC1404_EXTEND_ID` includes the ERC-1404 functions, as CMTAT's `ERC1404EXTEND_INTERFACE_ID` does.
+- The ERC-1404 and ERC-1643 ids depend on the `ByteArray` encoding above. CMTAT has no Cairo id to check it against.
+- `tests/test_interface_ids.cairo` recomputes every id defined in this crate from its signature strings. The ERC-8343 id is recomputed in `tests/test_pause.cairo`.
+
+### Interfaces per preset
+
+| Interface | Light | Allowlist | Debt | Standard | Snapshot |
+|---|:-:|:-:|:-:|:-:|:-:|
+| SRC5 | ✓ | ✓ | ✓ | ✓ | ✓ |
+| AccessControl | ✓ | ✓ | ✓ | ✓ | ✓ |
+| ERC-8343 | ✓ | ✓ | ✓ | ✓ | ✓ |
+| ERC-5679 | ✓ | ✓ | ✓ | ✓ | ✓ |
+| ERC-7943 | | ✓ | ✓ | ✓ | ✓ |
+| ERC-1643 | | ✓ | ✓ | ✓ | ✓ |
+| ERC-1404 | | | | ✓ | ✓ |
+| IERC1404Extend | | | | ✓ | ✓ |
+
+Each column matches the preset's CMTAT base:
+- **Light** follows `CMTATBaseCore`. It has no partial freeze, so it doesn't report ERC-7943.
+- **Allowlist** and **Debt** follow `CMTATBaseAccessControl`. CMTAT's Debt base sits below `CMTATBaseERC1404`, so Debt doesn't report ERC-1404.
+- **Standard** and **Snapshot** follow `CMTATBaseERC1404`.
+
+---
+
 ## Feature Comparison Matrix
 
 | Feature | Light | Allowlist | Debt | Standard |
