@@ -31,7 +31,7 @@ pub mod CMTATSnapshot {
     use crate::components::rule_engine::RuleEngineComponent;
     use crate::components::snapshot::SnapshotComponent;
     use crate::components::token_attributes::TokenAttributesComponent;
-    use crate::components::upgrade::UpgradeComponent;
+    use crate::components::upgrade::{INITIAL_VERSION, UpgradeComponent};
     use crate::components::validation::ValidationComponent;
     use crate::interfaces::constructor::{ERC20Attributes, ExtraInformationAttributes};
     use crate::interfaces::erc1404::{IERC1404_EXTEND_ID, IERC1404_ID};
@@ -174,6 +174,9 @@ pub mod CMTATSnapshot {
     // Upgrades
     #[abi(embed_v0)]
     impl UpgradeableImpl = UpgradeComponent::UpgradeableImpl<ContractState>;
+    #[abi(embed_v0)]
+    impl UpgradeVersionImpl = UpgradeComponent::UpgradeVersionImpl<ContractState>;
+    impl UpgradeInternalImpl = UpgradeComponent::InternalImpl<ContractState>;
 
     #[storage]
     struct Storage {
@@ -275,6 +278,7 @@ pub mod CMTATSnapshot {
         rule_engine: ContractAddress,
     ) {
         self.cmtat_access.initializer(admin);
+        self.upgrade.initializer(INITIAL_VERSION);
         self.src5.register_interface(IERC5679_ID);
         self.src5.register_interface(IERC7943_ID);
         self.src5.register_interface(IERC1643_ID);

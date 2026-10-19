@@ -43,6 +43,7 @@ pub mod interfaces {
     pub mod rule_engine;
     pub mod snapshot;
     pub mod token_attributes;
+    pub mod upgrade;
     pub mod validation;
 }
 
@@ -68,4 +69,5 @@ pub mod mocks {
     pub mod rule_engine_recorder;
     pub mod snapshot_engine;
     pub mod snapshot_engine_recorder;
+    pub mod standard_v2_mock;
 }

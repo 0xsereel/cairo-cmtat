@@ -78,6 +78,9 @@ pub const ERC1643_MISSING_DOCUMENT: felt252 = 'ERC1643MissingDocument';
 // CMTAT_SnapshotModule_SameValue
 pub const SNAPSHOT_SAME_VALUE: felt252 = 'Snapshot_SameValue';
 
+// Upgrades (OpenZeppelin Initializable)
+pub const INVALID_INITIALIZATION: felt252 = 'InvalidInitialization';
+
 /// Panics with `[ERC7943CannotSend, account]`.
 pub fn cannot_send(account: starknet::ContractAddress) -> core::never {
     panic(array![ERC7943_CANNOT_SEND, account.into()])

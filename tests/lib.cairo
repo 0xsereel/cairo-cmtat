@@ -21,5 +21,6 @@ mod test_rule_engine;
 mod test_snapshot;
 mod test_snapshot_preset;
 mod test_standard;
+mod test_upgrade;
 mod test_validation_matrix;
 pub mod utils;

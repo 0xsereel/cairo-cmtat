@@ -27,7 +27,7 @@ pub mod CMTATAllowlist {
     use crate::components::mint::MintComponent;
     use crate::components::pause::PauseComponent;
     use crate::components::token_attributes::TokenAttributesComponent;
-    use crate::components::upgrade::UpgradeComponent;
+    use crate::components::upgrade::{INITIAL_VERSION, UpgradeComponent};
     use crate::components::validation::ValidationComponent;
     use crate::interfaces::constructor::{ERC20Attributes, ExtraInformationAttributes};
     use crate::interfaces::erc1643::IERC1643_ID;
@@ -154,6 +154,9 @@ pub mod CMTATAllowlist {
     // Upgrades
     #[abi(embed_v0)]
     impl UpgradeableImpl = UpgradeComponent::UpgradeableImpl<ContractState>;
+    #[abi(embed_v0)]
+    impl UpgradeVersionImpl = UpgradeComponent::UpgradeVersionImpl<ContractState>;
+    impl UpgradeInternalImpl = UpgradeComponent::InternalImpl<ContractState>;
 
     #[storage]
     struct Storage {
@@ -240,6 +243,7 @@ pub mod CMTATAllowlist {
         extra_information_attributes: ExtraInformationAttributes,
     ) {
         self.cmtat_access.initializer(admin);
+        self.upgrade.initializer(INITIAL_VERSION);
         self.src5.register_interface(IERC5679_ID);
         self.src5.register_interface(IERC7943_ID);
         self.src5.register_interface(IERC1643_ID);
