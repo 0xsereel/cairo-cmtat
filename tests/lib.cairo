@@ -13,6 +13,7 @@ mod test_erc20_base;
 mod test_erc20_enforcement;
 mod test_erc20_mock;
 mod test_forced_burn;
+mod test_fuzz;
 mod test_interface_ids;
 mod test_light;
 mod test_mint;
