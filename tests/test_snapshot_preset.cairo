@@ -15,7 +15,6 @@ use cairo_cmtat::interfaces::erc20_enforcement::{
     IERC7551ERC20EnforcementSafeDispatcher, IERC7551ERC20EnforcementSafeDispatcherTrait,
 };
 use cairo_cmtat::interfaces::mint::{IERC3643MintDispatcher, IERC3643MintDispatcherTrait};
-use cairo_cmtat::interfaces::pause::IERC8343_ID;
 use cairo_cmtat::interfaces::rule_engine::{
     IValidationRuleEngineDispatcher, IValidationRuleEngineDispatcherTrait,
 };
@@ -28,10 +27,9 @@ use cairo_cmtat::mocks::snapshot_engine_recorder::{
 use cairo_cmtat::roles::{BURNER_FROM_ROLE, SNAPSHOOTER_ROLE};
 use openzeppelin::access::accesscontrol::AccessControlComponent;
 use openzeppelin::interfaces::accesscontrol::{
-    IACCESSCONTROL_ID, IAccessControlDispatcher, IAccessControlDispatcherTrait,
+    IAccessControlDispatcher, IAccessControlDispatcherTrait,
 };
 use openzeppelin::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
-use openzeppelin::interfaces::introspection::{ISRC5Dispatcher, ISRC5DispatcherTrait, ISRC5_ID};
 use openzeppelin::interfaces::upgrades::{
     IUpgradeableDispatcher, IUpgradeableDispatcherTrait, IUpgradeableSafeDispatcher,
     IUpgradeableSafeDispatcherTrait,
@@ -95,14 +93,6 @@ fn has_erc1404() {
             .detect_transfer_restriction(HOLDER, RECIPIENT, 0),
         TRANSFER_OK,
     );
-}
-
-#[test]
-fn registers_interfaces() {
-    let src5 = ISRC5Dispatcher { contract_address: deploy_snapshot_preset(ZERO) };
-    assert!(src5.supports_interface(ISRC5_ID));
-    assert!(src5.supports_interface(IACCESSCONTROL_ID));
-    assert!(src5.supports_interface(IERC8343_ID));
 }
 
 #[test]

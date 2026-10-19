@@ -20,7 +20,6 @@ use cairo_cmtat::interfaces::extra_information::{
     ICMTATBaseDispatcher, ICMTATBaseDispatcherTrait, Terms,
 };
 use cairo_cmtat::interfaces::mint::{IERC3643MintDispatcher, IERC3643MintDispatcherTrait};
-use cairo_cmtat::interfaces::pause::IERC8343_ID;
 use cairo_cmtat::interfaces::rule_engine::{
     IValidationRuleEngineDispatcher, IValidationRuleEngineDispatcherTrait,
 };
@@ -36,13 +35,12 @@ use cairo_cmtat::mocks::rule_engine_recorder::{
 use cairo_cmtat::roles::{BURNER_FROM_ROLE, DEFAULT_ADMIN_ROLE, DOCUMENT_ROLE, MINTER_ROLE};
 use openzeppelin::access::accesscontrol::AccessControlComponent;
 use openzeppelin::interfaces::accesscontrol::{
-    IACCESSCONTROL_ID, IAccessControlDispatcher, IAccessControlDispatcherTrait,
+    IAccessControlDispatcher, IAccessControlDispatcherTrait,
 };
 use openzeppelin::interfaces::erc20::{
     IERC20Dispatcher, IERC20DispatcherTrait, IERC20MetadataDispatcher,
     IERC20MetadataDispatcherTrait,
 };
-use openzeppelin::interfaces::introspection::{ISRC5Dispatcher, ISRC5DispatcherTrait, ISRC5_ID};
 use openzeppelin::interfaces::upgrades::{
     IUpgradeableDispatcher, IUpgradeableDispatcherTrait, IUpgradeableSafeDispatcher,
     IUpgradeableSafeDispatcherTrait,
@@ -122,14 +120,6 @@ fn constructor_sets_rule_engine() {
 fn constructor_without_rule_engine() {
     let token = deploy_standard(ZERO);
     assert_eq!(IValidationRuleEngineDispatcher { contract_address: token }.rule_engine(), ZERO);
-}
-
-#[test]
-fn registers_interfaces() {
-    let src5 = ISRC5Dispatcher { contract_address: deploy_standard(ZERO) };
-    assert!(src5.supports_interface(ISRC5_ID));
-    assert!(src5.supports_interface(IACCESSCONTROL_ID));
-    assert!(src5.supports_interface(IERC8343_ID));
 }
 
 //

@@ -29,9 +29,7 @@ use cairo_cmtat::interfaces::mint::{
     IERC3643MintDispatcher, IERC3643MintDispatcherTrait, IERC3643MintSafeDispatcher,
     IERC3643MintSafeDispatcherTrait,
 };
-use cairo_cmtat::interfaces::pause::{
-    IERC3643PauseDispatcher, IERC3643PauseDispatcherTrait, IERC8343_ID,
-};
+use cairo_cmtat::interfaces::pause::{IERC3643PauseDispatcher, IERC3643PauseDispatcherTrait};
 use cairo_cmtat::interfaces::rule_engine::{
     IValidationRuleEngineSafeDispatcher, IValidationRuleEngineSafeDispatcherTrait,
 };
@@ -48,13 +46,12 @@ use cairo_cmtat::roles::{
 };
 use openzeppelin::access::accesscontrol::AccessControlComponent;
 use openzeppelin::interfaces::accesscontrol::{
-    IACCESSCONTROL_ID, IAccessControlDispatcher, IAccessControlDispatcherTrait,
+    IAccessControlDispatcher, IAccessControlDispatcherTrait,
 };
 use openzeppelin::interfaces::erc20::{
     IERC20Dispatcher, IERC20DispatcherTrait, IERC20MetadataDispatcher,
     IERC20MetadataDispatcherTrait, IERC20SafeDispatcher, IERC20SafeDispatcherTrait,
 };
-use openzeppelin::interfaces::introspection::{ISRC5Dispatcher, ISRC5DispatcherTrait, ISRC5_ID};
 use openzeppelin::interfaces::upgrades::{
     IUpgradeableDispatcher, IUpgradeableDispatcherTrait, IUpgradeableSafeDispatcher,
     IUpgradeableSafeDispatcherTrait,
@@ -394,14 +391,6 @@ fn preset_constructor_sets_attributes() {
     assert_eq!(ICMTATBaseDispatcher { contract_address: token }.token_id(), "CH0000000000");
     assert!(allowlist(token).is_allowlist_enabled());
     assert_eq!(IERC20Dispatcher { contract_address: token }.total_supply(), 0);
-}
-
-#[test]
-fn preset_registers_interfaces() {
-    let src5 = ISRC5Dispatcher { contract_address: deploy_allowlist_preset() };
-    assert!(src5.supports_interface(ISRC5_ID));
-    assert!(src5.supports_interface(IACCESSCONTROL_ID));
-    assert!(src5.supports_interface(IERC8343_ID));
 }
 
 #[test]

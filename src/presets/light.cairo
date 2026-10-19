@@ -22,6 +22,7 @@ pub mod CMTATLight {
     use crate::components::upgrade::UpgradeComponent;
     use crate::components::validation::ValidationComponent;
     use crate::interfaces::constructor::ERC20Attributes;
+    use crate::interfaces::mint::IERC5679_ID;
 
     // OpenZeppelin
     component!(path: ERC20Component, storage: erc20, event: ERC20Event);
@@ -63,6 +64,7 @@ pub mod CMTATLight {
     impl AccessControlInternalImpl = CMTATAccessControlComponent::InternalImpl<ContractState>;
     #[abi(embed_v0)]
     impl SRC5Impl = SRC5Component::SRC5Impl<ContractState>;
+    impl SRC5InternalImpl = SRC5Component::InternalImpl<ContractState>;
 
     // Pause and ERC-8343
     #[abi(embed_v0)]
@@ -192,6 +194,7 @@ pub mod CMTATLight {
         ref self: ContractState, admin: ContractAddress, erc20_attributes: ERC20Attributes,
     ) {
         self.cmtat_access.initializer(admin);
+        self.src5.register_interface(IERC5679_ID);
         self.pause.initializer();
         let ERC20Attributes { name, symbol, decimals } = erc20_attributes;
         self.erc20_base.initializer(name, symbol, decimals);

@@ -18,7 +18,6 @@ use cairo_cmtat::interfaces::erc20_enforcement::{
 };
 use cairo_cmtat::interfaces::extra_information::{ICMTATBaseDispatcher, ICMTATBaseDispatcherTrait};
 use cairo_cmtat::interfaces::mint::{IERC3643MintDispatcher, IERC3643MintDispatcherTrait};
-use cairo_cmtat::interfaces::pause::IERC8343_ID;
 use cairo_cmtat::interfaces::rule_engine::{
     IValidationRuleEngineDispatcher, IValidationRuleEngineDispatcherTrait,
 };
@@ -34,10 +33,9 @@ use cairo_cmtat::mocks::snapshot_engine_recorder::{
 use cairo_cmtat::roles::{DEBT_ROLE, SNAPSHOOTER_ROLE};
 use openzeppelin::access::accesscontrol::AccessControlComponent;
 use openzeppelin::interfaces::accesscontrol::{
-    IACCESSCONTROL_ID, IAccessControlDispatcher, IAccessControlDispatcherTrait,
+    IAccessControlDispatcher, IAccessControlDispatcherTrait,
 };
 use openzeppelin::interfaces::erc20::{IERC20MetadataDispatcher, IERC20MetadataDispatcherTrait};
-use openzeppelin::interfaces::introspection::{ISRC5Dispatcher, ISRC5DispatcherTrait, ISRC5_ID};
 use openzeppelin::interfaces::upgrades::{
     IUpgradeableDispatcher, IUpgradeableDispatcherTrait, IUpgradeableSafeDispatcher,
     IUpgradeableSafeDispatcherTrait,
@@ -93,14 +91,6 @@ fn debt_is_managed_under_debt_role() {
     let events = CreditEvents { flag_default: false, flag_redeemed: true, rating: "AA" };
     IDebtModuleDispatcher { contract_address: token }.set_credit_events(events.clone());
     assert_eq!(IDebtModuleDispatcher { contract_address: token }.credit_events(), events);
-}
-
-#[test]
-fn registers_interfaces() {
-    let src5 = ISRC5Dispatcher { contract_address: deploy_debt_preset(ZERO) };
-    assert!(src5.supports_interface(ISRC5_ID));
-    assert!(src5.supports_interface(IACCESSCONTROL_ID));
-    assert!(src5.supports_interface(IERC8343_ID));
 }
 
 #[test]

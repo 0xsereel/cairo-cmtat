@@ -34,6 +34,10 @@ pub mod CMTATSnapshot {
     use crate::components::upgrade::UpgradeComponent;
     use crate::components::validation::ValidationComponent;
     use crate::interfaces::constructor::{ERC20Attributes, ExtraInformationAttributes};
+    use crate::interfaces::erc1404::{IERC1404_EXTEND_ID, IERC1404_ID};
+    use crate::interfaces::erc1643::IERC1643_ID;
+    use crate::interfaces::erc20_enforcement::IERC7943_ID;
+    use crate::interfaces::mint::IERC5679_ID;
 
     // OpenZeppelin
     component!(path: ERC20Component, storage: erc20, event: ERC20Event);
@@ -87,6 +91,7 @@ pub mod CMTATSnapshot {
     impl AccessControlInternalImpl = CMTATAccessControlComponent::InternalImpl<ContractState>;
     #[abi(embed_v0)]
     impl SRC5Impl = SRC5Component::SRC5Impl<ContractState>;
+    impl SRC5InternalImpl = SRC5Component::InternalImpl<ContractState>;
 
     // Pause and ERC-8343
     #[abi(embed_v0)]
@@ -270,6 +275,11 @@ pub mod CMTATSnapshot {
         rule_engine: ContractAddress,
     ) {
         self.cmtat_access.initializer(admin);
+        self.src5.register_interface(IERC5679_ID);
+        self.src5.register_interface(IERC7943_ID);
+        self.src5.register_interface(IERC1643_ID);
+        self.src5.register_interface(IERC1404_ID);
+        self.src5.register_interface(IERC1404_EXTEND_ID);
         self.pause.initializer();
         let ERC20Attributes { name, symbol, decimals } = erc20_attributes;
         self.erc20_base.initializer(name, symbol, decimals);

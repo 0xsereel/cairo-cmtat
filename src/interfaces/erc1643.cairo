@@ -4,6 +4,13 @@
 // Document names are `felt252` short strings, so they hold at most 31 bytes,
 // one fewer than Solidity's `bytes32`. Document hashes are `u256`.
 
+/// SNIP-5 id of ERC-1643 (CMTAT's `0xecfecec8`): XOR of the extended selectors of
+/// `get_document(felt252)->((Array<bytes31>,felt252,u32),(u128,u128),u64)`,
+/// `get_all_documents()->Array<felt252>`,
+/// `set_document(felt252,(Array<bytes31>,felt252,u32),(u128,u128))` and
+/// `remove_document(felt252)`.
+pub const IERC1643_ID: felt252 = 0x1a10ec61334b275b2f19413a43f011e7465e9f29c94a34b07b7d33c2bb93d50;
+
 /// A document stored on chain. `last_modified` is set by the contract.
 #[derive(Clone, Drop, Debug, PartialEq, Serde, starknet::Store)]
 pub struct Document {

@@ -5,6 +5,16 @@
 
 use starknet::ContractAddress;
 
+/// SNIP-5 id of ERC-7943 fungible (CMTAT's `0x3edbb4c4`): XOR of the extended
+/// selectors of
+/// `get_frozen_tokens(ContractAddress)->(u128,u128)`,
+/// `set_frozen_tokens(ContractAddress,(u128,u128))->E((),())`,
+/// `forced_transfer(ContractAddress,ContractAddress,(u128,u128))->E((),())`,
+/// `can_send(ContractAddress)->E((),())`,
+/// `can_receive(ContractAddress)->E((),())` and
+/// `can_transfer(ContractAddress,ContractAddress,(u128,u128))->E((),())`.
+pub const IERC7943_ID: felt252 = 0x14e4423410d8cc56f38ff233c6d8d427700f0c7929a1ef8c0c9d117955b3ec1;
+
 #[starknet::interface]
 pub trait IERC3643ERC20Enforcement<TState> {
     fn freeze_partial_tokens(ref self: TState, account: ContractAddress, value: u256);

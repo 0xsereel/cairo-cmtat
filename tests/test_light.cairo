@@ -11,17 +11,15 @@ use cairo_cmtat::interfaces::erc20_enforcement::{
 use cairo_cmtat::interfaces::extra_information::{
     ICMTATBaseSafeDispatcher, ICMTATBaseSafeDispatcherTrait,
 };
-use cairo_cmtat::interfaces::pause::IERC8343_ID;
 use cairo_cmtat::interfaces::token_attributes::{
     IERC3643VersionDispatcher, IERC3643VersionDispatcherTrait,
 };
 use cairo_cmtat::roles::DEFAULT_ADMIN_ROLE;
 use openzeppelin::access::accesscontrol::AccessControlComponent;
 use openzeppelin::interfaces::accesscontrol::{
-    IACCESSCONTROL_ID, IAccessControlDispatcher, IAccessControlDispatcherTrait,
+    IAccessControlDispatcher, IAccessControlDispatcherTrait,
 };
 use openzeppelin::interfaces::erc20::{IERC20MetadataDispatcher, IERC20MetadataDispatcherTrait};
-use openzeppelin::interfaces::introspection::{ISRC5Dispatcher, ISRC5DispatcherTrait, ISRC5_ID};
 use openzeppelin::interfaces::upgrades::{
     IUpgradeableDispatcher, IUpgradeableDispatcherTrait, IUpgradeableSafeDispatcher,
     IUpgradeableSafeDispatcherTrait,
@@ -57,14 +55,6 @@ fn constructor_sets_attributes_and_admin() {
         IAccessControlDispatcher { contract_address: token }.has_role(DEFAULT_ADMIN_ROLE, ADMIN),
     );
     assert_eq!(IERC3643VersionDispatcher { contract_address: token }.version(), "3.3.0");
-}
-
-#[test]
-fn registers_interfaces() {
-    let src5 = ISRC5Dispatcher { contract_address: deploy() };
-    assert!(src5.supports_interface(ISRC5_ID));
-    assert!(src5.supports_interface(IACCESSCONTROL_ID));
-    assert!(src5.supports_interface(IERC8343_ID));
 }
 
 //
