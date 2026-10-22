@@ -45,8 +45,8 @@ use snforge_std::{DeclareResultTrait, declare, get_class_hash, start_cheat_calle
 use starknet::{ClassHash, ContractAddress};
 use crate::utils::{
     ADMIN, HOLDER, MINTER, OTHER, RECIPIENT, SPENDER, ZERO, assert_reverted_with,
-    deploy_allowlist_preset, deploy_debt_preset, deploy_snapshot_preset, deploy_standard,
-    standard_erc20_attributes,
+    deploy_allowlist_preset, deploy_debt_preset, deploy_light_preset, deploy_snapshot_preset,
+    deploy_standard, standard_erc20_attributes,
 };
 
 fn version_of(token: ContractAddress) -> u64 {
@@ -68,10 +68,7 @@ fn upgraded_standard() -> (ContractAddress, ContractAddress) {
 
 #[test]
 fn presets_start_at_version_one() {
-    let mut calldata = array![];
-    calldata.append_serde(ADMIN);
-    calldata.append_serde(standard_erc20_attributes());
-    let light = openzeppelin_testing::declare_and_deploy("CMTATLight", calldata);
+    let light = deploy_light_preset();
     assert_eq!(version_of(light), 1);
     assert_eq!(version_of(deploy_allowlist_preset()), 1);
     assert_eq!(version_of(deploy_debt_preset(ZERO)), 1);

@@ -46,6 +46,15 @@ pub fn assert_reverted_with<T, +Drop<T>>(
     }
 }
 
+/// Deploys `CMTATLight` with `ADMIN` as default admin and the standard ERC-20
+/// attributes. Mints nothing.
+pub fn deploy_light_preset() -> ContractAddress {
+    let mut calldata = array![];
+    calldata.append_serde(ADMIN);
+    calldata.append_serde(standard_erc20_attributes());
+    openzeppelin_testing::declare_and_deploy("CMTATLight", calldata)
+}
+
 /// Deploys `CMTATStandard` with `ADMIN` as default admin and `rule_engine` (may be
 /// zero). Mints nothing.
 pub fn deploy_standard(rule_engine: ContractAddress) -> ContractAddress {

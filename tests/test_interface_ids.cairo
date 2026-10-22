@@ -9,10 +9,9 @@ use cairo_cmtat::interfaces::mint::IERC5679_ID;
 use cairo_cmtat::interfaces::pause::IERC8343_ID;
 use openzeppelin::interfaces::accesscontrol::IACCESSCONTROL_ID;
 use openzeppelin::interfaces::introspection::{ISRC5Dispatcher, ISRC5DispatcherTrait, ISRC5_ID};
-use openzeppelin::utils::serde::SerializedAppend;
 use starknet::ContractAddress;
 use crate::utils::{
-    ADMIN, ZERO, deploy_allowlist_preset, deploy_debt_preset, deploy_snapshot_preset,
+    ZERO, deploy_allowlist_preset, deploy_debt_preset, deploy_light_preset, deploy_snapshot_preset,
     deploy_standard,
 };
 
@@ -117,10 +116,7 @@ fn assert_supports_exactly(token: ContractAddress, expected: Span<felt252>) {
 /// partial freeze) and no ERC-1643.
 #[test]
 fn light_interfaces() {
-    let mut calldata = array![];
-    calldata.append_serde(ADMIN);
-    calldata.append_serde(crate::utils::standard_erc20_attributes());
-    let token = openzeppelin_testing::declare_and_deploy("CMTATLight", calldata);
+    let token = deploy_light_preset();
     assert_supports_exactly(
         token, array![ISRC5_ID, IACCESSCONTROL_ID, IERC8343_ID, IERC5679_ID].span(),
     );

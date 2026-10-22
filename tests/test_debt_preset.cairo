@@ -1,20 +1,10 @@
 // SPDX-License-Identifier: MPL-2.0
-// CMTATDebt preset: deployment, engines, debt, introspection, upgrades and ABI
-// surface. The validation behaviour is covered by test_validation_matrix.
+// CMTATDebt preset: constructor, engines and debt. The ABI surface, roles and
+// upgrades are covered for every preset by test_presets; validation by
+// test_validation_matrix.
 
-use cairo_cmtat::interfaces::allowlist::{
-    IAllowlistModuleSafeDispatcher, IAllowlistModuleSafeDispatcherTrait,
-};
-use cairo_cmtat::interfaces::burn::{
-    IBurnFromERC20SafeDispatcher, IBurnFromERC20SafeDispatcherTrait, IForcedBurnERC20SafeDispatcher,
-    IForcedBurnERC20SafeDispatcherTrait,
-};
 use cairo_cmtat::interfaces::debt::{
     CreditEvents, IDebtModuleDispatcher, IDebtModuleDispatcherTrait,
-};
-use cairo_cmtat::interfaces::erc1404::{IERC1404SafeDispatcher, IERC1404SafeDispatcherTrait};
-use cairo_cmtat::interfaces::erc20_enforcement::{
-    IERC7551ERC20EnforcementSafeDispatcher, IERC7551ERC20EnforcementSafeDispatcherTrait,
 };
 use cairo_cmtat::interfaces::extra_information::{ICMTATBaseDispatcher, ICMTATBaseDispatcherTrait};
 use cairo_cmtat::interfaces::mint::{IERC3643MintDispatcher, IERC3643MintDispatcherTrait};
@@ -31,21 +21,12 @@ use cairo_cmtat::mocks::snapshot_engine_recorder::{
     ISnapshotEngineRecorderDispatcher, ISnapshotEngineRecorderDispatcherTrait, SnapshotCall,
 };
 use cairo_cmtat::roles::{DEBT_ROLE, SNAPSHOOTER_ROLE};
-use openzeppelin::access::accesscontrol::AccessControlComponent;
 use openzeppelin::interfaces::accesscontrol::{
     IAccessControlDispatcher, IAccessControlDispatcherTrait,
 };
 use openzeppelin::interfaces::erc20::{IERC20MetadataDispatcher, IERC20MetadataDispatcherTrait};
-use openzeppelin::interfaces::upgrades::{
-    IUpgradeableDispatcher, IUpgradeableDispatcherTrait, IUpgradeableSafeDispatcher,
-    IUpgradeableSafeDispatcherTrait,
-};
-use snforge_std::{DeclareResultTrait, declare, get_class_hash, start_cheat_caller_address};
-use crate::utils::{ADMIN, HOLDER, OTHER, RECIPIENT, ZERO, assert_reverted_with, deploy_debt_preset};
-
-fn entrypoint_not_found() -> Array<felt252> {
-    array!['ENTRYPOINT_NOT_FOUND', 'ENTRYPOINT_FAILED']
-}
+use snforge_std::start_cheat_caller_address;
+use crate::utils::{ADMIN, HOLDER, OTHER, ZERO, deploy_debt_preset};
 
 //
 // Deployment and engines
@@ -93,56 +74,3 @@ fn debt_is_managed_under_debt_role() {
     assert_eq!(IDebtModuleDispatcher { contract_address: token }.credit_events(), events);
 }
 
-#[test]
-#[feature("safe_dispatcher")]
-fn upgrade_requires_default_admin() {
-    let token = deploy_debt_preset(ZERO);
-    let new_class = *declare("ERC20Mock").unwrap().contract_class().class_hash;
-    start_cheat_caller_address(token, OTHER);
-    assert_reverted_with(
-        IUpgradeableSafeDispatcher { contract_address: token }.upgrade(new_class),
-        array![AccessControlComponent::Errors::MISSING_ROLE].span(),
-    );
-    start_cheat_caller_address(token, ADMIN);
-    IUpgradeableDispatcher { contract_address: token }.upgrade(new_class);
-    assert_eq!(get_class_hash(token), new_class);
-}
-
-//
-// Debt omits ERC-1404, burn-from, ERC-7551 overloads, allowlist and forced burn
-//
-
-#[test]
-#[feature("safe_dispatcher")]
-fn has_no_erc1404_burn_from_erc7551_allowlist_or_forced_burn() {
-    let token = deploy_debt_preset(ZERO);
-    start_cheat_caller_address(token, ADMIN);
-    assert_eq!(
-        IERC1404SafeDispatcher { contract_address: token }
-            .detect_transfer_restriction(HOLDER, RECIPIENT, 1)
-            .unwrap_err(),
-        entrypoint_not_found(),
-    );
-    assert_eq!(
-        IBurnFromERC20SafeDispatcher { contract_address: token }.burn_from(HOLDER, 1).unwrap_err(),
-        entrypoint_not_found(),
-    );
-    assert_eq!(
-        IERC7551ERC20EnforcementSafeDispatcher { contract_address: token }
-            .get_active_balance_of(HOLDER)
-            .unwrap_err(),
-        entrypoint_not_found(),
-    );
-    assert_eq!(
-        IAllowlistModuleSafeDispatcher { contract_address: token }
-            .is_allowlist_enabled()
-            .unwrap_err(),
-        entrypoint_not_found(),
-    );
-    assert_eq!(
-        IForcedBurnERC20SafeDispatcher { contract_address: token }
-            .forced_burn(HOLDER, 1, array![].span())
-            .unwrap_err(),
-        entrypoint_not_found(),
-    );
-}

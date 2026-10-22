@@ -59,7 +59,6 @@ use openzeppelin::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
 use openzeppelin::interfaces::upgrades::{IUpgradeableDispatcher, IUpgradeableDispatcherTrait};
 use openzeppelin::token::erc20::ERC20Component;
 use openzeppelin::upgrades::UpgradeableComponent;
-use openzeppelin::utils::serde::SerializedAppend;
 use snforge_std::{
     Event, EventSpy, EventSpyTrait, EventsFilterTrait, get_class_hash, spy_events,
     start_cheat_caller_address, test_address,
@@ -67,7 +66,7 @@ use snforge_std::{
 use starknet::ContractAddress;
 use crate::utils::{
     ADMIN, HOLDER, MINTER, OTHER, RECIPIENT, SPENDER, ZERO, deploy_allowlist_preset,
-    deploy_debt_preset, deploy_snapshot_preset, deploy_standard, standard_erc20_attributes,
+    deploy_debt_preset, deploy_light_preset, deploy_snapshot_preset, deploy_standard,
 };
 
 /// Appends the keys and data `event` would emit as a flat component event.
@@ -294,10 +293,7 @@ fn assert_constructor_events(ref spy: EventSpy, token: ContractAddress) {
 #[test]
 fn light_events() {
     let mut spy = spy_events();
-    let mut calldata = array![];
-    calldata.append_serde(ADMIN);
-    calldata.append_serde(standard_erc20_attributes());
-    let token = openzeppelin_testing::declare_and_deploy("CMTATLight", calldata);
+    let token = deploy_light_preset();
     assert_constructor_events(ref spy, token);
 
     let mut spy = spy_events();

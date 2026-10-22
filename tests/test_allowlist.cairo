@@ -9,16 +9,10 @@ use cairo_cmtat::interfaces::allowlist::{
     IAllowlistModuleDispatcher, IAllowlistModuleDispatcherTrait, IAllowlistModuleSafeDispatcher,
     IAllowlistModuleSafeDispatcherTrait,
 };
-use cairo_cmtat::interfaces::burn::{
-    IBurnFromERC20SafeDispatcher, IBurnFromERC20SafeDispatcherTrait, IERC3643BurnSafeDispatcher,
-    IERC3643BurnSafeDispatcherTrait, IForcedBurnERC20SafeDispatcher,
-    IForcedBurnERC20SafeDispatcherTrait,
-};
-use cairo_cmtat::interfaces::debt::{IDebtModuleSafeDispatcher, IDebtModuleSafeDispatcherTrait};
+use cairo_cmtat::interfaces::burn::{IERC3643BurnSafeDispatcher, IERC3643BurnSafeDispatcherTrait};
 use cairo_cmtat::interfaces::enforcement::{
     IERC3643EnforcementDispatcher, IERC3643EnforcementDispatcherTrait,
 };
-use cairo_cmtat::interfaces::erc1404::{IERC1404SafeDispatcher, IERC1404SafeDispatcherTrait};
 use cairo_cmtat::interfaces::erc20_enforcement::{
     IERC3643ERC20EnforcementDispatcher, IERC3643ERC20EnforcementDispatcherTrait,
     IERC7551ERC20EnforcementDispatcher, IERC7551ERC20EnforcementDispatcherTrait,
@@ -30,12 +24,6 @@ use cairo_cmtat::interfaces::mint::{
     IERC3643MintSafeDispatcherTrait,
 };
 use cairo_cmtat::interfaces::pause::{IERC3643PauseDispatcher, IERC3643PauseDispatcherTrait};
-use cairo_cmtat::interfaces::rule_engine::{
-    IValidationRuleEngineSafeDispatcher, IValidationRuleEngineSafeDispatcherTrait,
-};
-use cairo_cmtat::interfaces::snapshot::{
-    ISnapshotEngineModuleSafeDispatcher, ISnapshotEngineModuleSafeDispatcherTrait,
-};
 use cairo_cmtat::interfaces::validation::{
     IERC3643ComplianceReadDispatcher, IERC3643ComplianceReadDispatcherTrait,
     IERC7551ComplianceDispatcher, IERC7551ComplianceDispatcherTrait,
@@ -52,13 +40,9 @@ use openzeppelin::interfaces::erc20::{
     IERC20Dispatcher, IERC20DispatcherTrait, IERC20MetadataDispatcher,
     IERC20MetadataDispatcherTrait, IERC20SafeDispatcher, IERC20SafeDispatcherTrait,
 };
-use openzeppelin::interfaces::upgrades::{
-    IUpgradeableDispatcher, IUpgradeableDispatcherTrait, IUpgradeableSafeDispatcher,
-    IUpgradeableSafeDispatcherTrait,
-};
 use openzeppelin::utils::serde::SerializedAppend;
 use openzeppelin_testing::{EventSpyExt, spy_events};
-use snforge_std::{DeclareResultTrait, declare, get_class_hash, start_cheat_caller_address};
+use snforge_std::start_cheat_caller_address;
 use starknet::ContractAddress;
 use crate::utils::{
     ADMIN, BURNER, ENFORCER, ERC20ENFORCER, HOLDER, MINTER, OTHER, PAUSER, RECIPIENT, SPENDER,
@@ -375,12 +359,8 @@ fn can_transfer_reflects_allowlist() {
 }
 
 //
-// Preset surface
+// Preset
 //
-
-fn entrypoint_not_found() -> Array<felt252> {
-    array!['ENTRYPOINT_NOT_FOUND', 'ENTRYPOINT_FAILED']
-}
 
 #[test]
 fn preset_constructor_sets_attributes() {
@@ -391,21 +371,6 @@ fn preset_constructor_sets_attributes() {
     assert_eq!(ICMTATBaseDispatcher { contract_address: token }.token_id(), "CH0000000000");
     assert!(allowlist(token).is_allowlist_enabled());
     assert_eq!(IERC20Dispatcher { contract_address: token }.total_supply(), 0);
-}
-
-#[test]
-#[feature("safe_dispatcher")]
-fn preset_upgrade_requires_default_admin() {
-    let token = deploy_allowlist_preset();
-    let new_class = *declare("ERC20Mock").unwrap().contract_class().class_hash;
-    start_cheat_caller_address(token, OTHER);
-    assert_reverted_with(
-        IUpgradeableSafeDispatcher { contract_address: token }.upgrade(new_class),
-        array![AccessControlComponent::Errors::MISSING_ROLE].span(),
-    );
-    start_cheat_caller_address(token, ADMIN);
-    IUpgradeableDispatcher { contract_address: token }.upgrade(new_class);
-    assert_eq!(get_class_hash(token), new_class);
 }
 
 #[test]
@@ -421,39 +386,3 @@ fn preset_has_erc7551_enforcement() {
     );
 }
 
-#[test]
-#[feature("safe_dispatcher")]
-fn preset_has_no_rule_engine_erc1404_burn_from_or_forced_burn() {
-    let token = setup();
-    start_cheat_caller_address(token, ADMIN);
-    assert_eq!(
-        IValidationRuleEngineSafeDispatcher { contract_address: token }.rule_engine().unwrap_err(),
-        entrypoint_not_found(),
-    );
-    assert_eq!(
-        IERC1404SafeDispatcher { contract_address: token }
-            .detect_transfer_restriction(HOLDER, RECIPIENT, 1)
-            .unwrap_err(),
-        entrypoint_not_found(),
-    );
-    assert_eq!(
-        IBurnFromERC20SafeDispatcher { contract_address: token }.burn_from(HOLDER, 1).unwrap_err(),
-        entrypoint_not_found(),
-    );
-    assert_eq!(
-        IForcedBurnERC20SafeDispatcher { contract_address: token }
-            .forced_burn(HOLDER, 1, array![].span())
-            .unwrap_err(),
-        entrypoint_not_found(),
-    );
-    assert_eq!(
-        IDebtModuleSafeDispatcher { contract_address: token }.credit_events().unwrap_err(),
-        entrypoint_not_found(),
-    );
-    assert_eq!(
-        ISnapshotEngineModuleSafeDispatcher { contract_address: token }
-            .snapshot_engine()
-            .unwrap_err(),
-        entrypoint_not_found(),
-    );
-}
