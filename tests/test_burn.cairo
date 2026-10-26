@@ -279,6 +279,29 @@ fn batch_burn_is_atomic_on_frozen_account() {
     assert_eq!(erc20(token).balance_of(HOLDER), SUPPLY);
 }
 
+#[test]
+#[feature("safe_dispatcher")]
+fn burn_above_balance_reverts_with_insufficient_balance() {
+    let token = setup();
+    assert_reverted_with(
+        safe_burn(token).burn(HOLDER, SUPPLY + 1),
+        array![ERC20Component::Errors::INSUFFICIENT_BALANCE].span(),
+    );
+    assert_eq!(erc20(token).total_supply(), SUPPLY);
+}
+
+/// The second burn exceeds what the first left; nothing is burnt.
+#[test]
+#[feature("safe_dispatcher")]
+fn batch_burn_is_atomic_on_insufficient_balance() {
+    let token = setup();
+    assert_reverted_with(
+        safe_burn(token).batch_burn(array![HOLDER, HOLDER].span(), array![1, SUPPLY].span()),
+        array![ERC20Component::Errors::INSUFFICIENT_BALANCE].span(),
+    );
+    assert_eq!(erc20(token).balance_of(HOLDER), SUPPLY);
+}
+
 //
 // burn_from / burn_self
 //

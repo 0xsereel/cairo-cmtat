@@ -177,6 +177,15 @@ fn mint_by_frozen_minter_succeeds() {
 }
 
 #[test]
+fn batch_mint_by_frozen_minter_succeeds() {
+    let token = setup();
+    freeze(token, MINTER);
+    mint(token).batch_mint(array![RECIPIENT, OTHER].span(), array![100, 200].span());
+    assert_eq!(erc20(token).balance_of(RECIPIENT), 100);
+    assert_eq!(erc20(token).balance_of(OTHER), 200);
+}
+
+#[test]
 #[feature("safe_dispatcher")]
 fn mint_to_zero_reverts() {
     let token = setup();
@@ -275,6 +284,20 @@ fn batch_transfer_moves_minter_tokens() {
     assert_eq!(erc20(token).balance_of(OTHER), 200);
     spy.assert_emitted_single(token, transfer_event(MINTER, RECIPIENT, 100));
     spy.assert_only_event(token, transfer_event(MINTER, OTHER, 200));
+}
+
+/// The second transfer exceeds what the first left; nothing moves.
+#[test]
+#[feature("safe_dispatcher")]
+fn batch_transfer_is_atomic_on_insufficient_balance() {
+    let token = setup_funded_minter();
+    assert_reverted_with(
+        safe_batch_transfer(token)
+            .batch_transfer(array![RECIPIENT, OTHER].span(), array![600, 500].span()),
+        array![ERC20Component::Errors::INSUFFICIENT_BALANCE].span(),
+    );
+    assert_eq!(erc20(token).balance_of(MINTER), 1000);
+    assert_eq!(erc20(token).balance_of(RECIPIENT), 0);
 }
 
 #[test]

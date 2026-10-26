@@ -26,9 +26,9 @@ These differences are not counted as partial anywhere in the tables:
 
 | Family (CMTAT `test/common/…`) | Cases | Covered | Partial | Gap | n/a |
 |---|---:|---:|---:|---:|---:|
-| `ERC20MintModuleCommon` | 34 | 25 | 4 | 5 | 0 |
-| `ERC20BurnModuleCommon` | 30 | 18 | 1 | 11 | 0 |
-| `ERC20BaseModuleCommon` | 25 | 15 | 5 | 5 | 0 |
+| `ERC20MintModuleCommon` | 34 | 29 | 3 | 2 | 0 |
+| `ERC20BurnModuleCommon` | 30 | 24 | 1 | 5 | 0 |
+| `ERC20BaseModuleCommon` | 25 | 18 | 5 | 2 | 0 |
 | `ERC20EnforcementModuleCommon` | 56 | 43 | 10 | 3 | 0 |
 | `ERC20EnforcementERC7551ModuleCommon` | 4 | 4 | 0 | 0 | 0 |
 | `EnforcementModuleCommon` | 21 | 16 | 5 | 0 | 0 |
@@ -49,7 +49,7 @@ These differences are not counted as partial anywhere in the tables:
 | `CMTATIntegrationCommon` | 4 | 3 | 1 | 0 | 0 |
 | `proxy/general` (upgrades) | 10 | 2 | 1 | 1 | 6 |
 | `deployment/*` (constructor behaviour) | 13 | 7 | 4 | 0 | 2 |
-| **Total** | **343** | **229** | **58** | **39** | **17** |
+| **Total** | **343** | **242** | **57** | **27** | **17** |
 
 ### Families not ported
 
@@ -70,8 +70,8 @@ These families cover modules outside release 1 (see the README). Their 142 cases
 
 These are the gaps and partials worth closing, most important first. The ids are referenced from the tables below.
 
-1. **P1: plain ERC-20 insufficient balance.** No test asserts OpenZeppelin's `'ERC20: insufficient balance'`. Every "insufficient" assertion is the ERC-7943 frozen-balance error, and `fuzz` keeps `value <= balance`. Missing cases: `transfer`, `transfer_from` (allowance sufficient), `burn`, `batch_burn` and `batch_transfer`, each with atomicity where it applies.
-2. **P2: batch paths under pause and deactivation.** The matrix runs single `mint`, `burn` and `batch_transfer` only. `batch_mint`, `batch_burn` and `burn_and_mint` are untested while paused (should succeed) or deactivated (should revert).
+1. ~~**P1: plain ERC-20 insufficient balance.**~~ Closed. `transfer`, `transfer_from`, `burn`, `batch_burn` and `batch_transfer` now assert OpenZeppelin's `'ERC20: insufficient balance'`, with atomicity for the batch calls.
+2. ~~**P2: batch paths under pause and deactivation.**~~ Closed. The validation matrix now runs `batch_mint`, `batch_burn` and `burn_and_mint` on every preset, in every pause and freeze state.
 3. **P3: allowlist on batch and `transfer_from` paths.** Missing cases: `batch_mint` or `batch_transfer` to an unlisted recipient, `batch_burn` from a delisted holder, an unlisted minter running `batch_mint`, and `transfer_from` to an unlisted recipient.
 4. **P4: RuleEngine on batch paths.** Missing cases:
    - a rejecting engine on `batch_mint`, `batch_transfer` and `transfer_from`, with full revert data;
@@ -127,7 +127,7 @@ These are the gaps and partials worth closing, most important first. The ids are
 | testCannotBeMintedIfContractIsDeactivated | covered | `mint::mint_reverts_when_deactivated`, `matrix` | |
 | testCannotBeMintedIfToIsFrozen | covered | `mint::mint_reverts_when_recipient_frozen`, `matrix` | |
 | testFrozenMinterCanStillMint | covered | `mint::mint_by_frozen_minter_succeeds` | |
-| testFrozenMinterCanStillBatchMint | gap | | P2 |
+| testFrozenMinterCanStillBatchMint | covered | `mint::batch_mint_by_frozen_minter_succeeds` | |
 | testMintPropagatesSpenderToRuleEngine | partial | `rule_engine::mint_passes_minter_as_spender`, `rejecting_engine_reverts_mint` | Revert data checked by first felt only (P4) |
 | testMintWithRuleEngineAuthorizedSpenderCanMint | covered | `rule_engine::mint_passes_minter_as_spender` | |
 | testCanBeMintedBatchByAdmin | covered | `mint::batch_mint_emits_batch_event_not_per_account_mint` | |
@@ -138,11 +138,11 @@ These are the gaps and partials worth closing, most important first. The ids are
 | testCannotBatchMintIfLengthMismatchMissingAddresses | gap | | P10 |
 | testCannotBatchMintIfLengthMismatchTooManyAddresses | covered | `mint::batch_mint_rejects_length_mismatch` | |
 | testCannotBatchMintIfTOSIsEmpty | covered | `mint::batch_mint_rejects_empty_accounts` | |
-| testCanBeMintedBatchEvenIfContractIsPaused | gap | | P2 |
-| testCannotBeBatchMintedIfContractIsDeactivated | gap | | P2 |
+| testCanBeMintedBatchEvenIfContractIsPaused | covered | `matrix` (paused, `BATCH_MINT`) | |
+| testCannotBeBatchMintedIfContractIsDeactivated | covered | `matrix` (deactivated, `BATCH_MINT`) | |
 | testCannotBeBatchMintedIfToIsFrozen | covered | `mint::batch_mint_is_atomic_on_frozen_recipient` | |
 | testbatchTransfer | covered | `mint::batch_transfer_moves_minter_tokens` | |
-| testCannotBatchTransferMoreTokensThanOwn | partial | `mint::batch_transfer_respects_active_balance` | Frozen-balance error only (P1) |
+| testCannotBatchTransferMoreTokensThanOwn | covered | `mint::batch_transfer_is_atomic_on_insufficient_balance`, `batch_transfer_respects_active_balance` | |
 | testCannotBatchTransferIfLengthMismatchMissingAddresses | covered | `mint::batch_transfer_rejects_length_mismatch` | |
 | testCannotBatchTransferIfLengthMismatchTooManyAddresses | gap | | P10 |
 | testCannotBatchTransferIfTOSIsEmpty | covered | `mint::batch_transfer_rejects_empty_tos` | |
@@ -161,7 +161,7 @@ These are the gaps and partials worth closing, most important first. The ids are
 | testCanBeBurntByAdminWithoutReason | covered | `burn::burn_reduces_balance_and_supply`, `preset_events::run_core` | |
 | testCanBeBurntByBurnerRole | covered | `burn::burn_reduces_balance_and_supply` | |
 | testCannotBeBurntWithoutBurnerRole | covered | `burn::burn_requires_burner_role`, `presets::core_calls_require_roles` | |
-| testCannotBeBurntIfBalanceExceeds | gap | | P1 |
+| testCannotBeBurntIfBalanceExceeds | covered | `burn::burn_above_balance_reverts_with_insufficient_balance` | |
 | testCannotBeBurnIfContractIsDeactivated | covered | `burn::burn_reverts_when_deactivated`, `matrix` | |
 | testCanBeBurnEvenIfContractIsPaused | partial | `burn::burn_succeeds_while_paused`, `matrix` | Events and supply not checked |
 | testCannotBeBurnIfAddressIsFrozen | covered | `burn::burn_reverts_when_account_frozen`, `matrix` | |
@@ -170,19 +170,19 @@ These are the gaps and partials worth closing, most important first. The ids are
 | testCanBurnAndMint | covered | `burn::burn_and_mint_with_both_roles` | |
 | testCannotBurnAndMintWithoutMinterRole | covered | `burn::burn_and_mint_requires_minter_role_for_mint_leg` | |
 | testCannotBurnAndMintWithoutBurnerRole | covered | `burn::burn_and_mint_requires_burner_role_for_burn_leg` | |
-| testCannotBeBurnAndMintIfContractIsDeactivated | gap | | P2 |
-| testCanBeBurnAndMintEvenIFContractIsPaused | gap | | P2 |
+| testCannotBeBurnAndMintIfContractIsDeactivated | covered | `matrix` (deactivated, `BURN_AND_MINT`) | |
+| testCanBeBurnAndMintEvenIFContractIsPaused | covered | `matrix` (paused, `BURN_AND_MINT`) | |
 | testCanBeBurntBatchByAdmin | covered | `burn::batch_burn_with_data_emits_data` | |
 | testCanBeBurntBatchByAdminWithoutReason | covered | `burn::batch_burn_emits_batch_event_not_per_account_burn` | |
 | testCanBeBurntBatchByBurnerRoleWithoutReason | covered | same | |
 | testCanBeBurntBatchByBurnerRole | covered | `burn::batch_burn_with_data_emits_data` | |
 | testCannotBeBurntBatchWithoutBurnerRole | gap | | P10 |
-| testCannotBeBurntBatchIfOneBalanceExceeds | gap | | P1 |
+| testCannotBeBurntBatchIfOneBalanceExceeds | covered | `burn::batch_burn_is_atomic_on_insufficient_balance` | |
 | testCannotBatchBurnIfLengthMismatchMissingAddresses | covered | `burn::batch_burn_rejects_length_mismatch` | |
 | testCannotBatchBurnIfLengthMismatchTooManyAddresses | gap | | P10 |
 | testCannotBatchBurnIfAccountsIsEmpty | covered | `burn::batch_burn_rejects_empty_accounts` | |
-| testCanBeBatchBurnEvenIfContractIsPaused | gap | | P2 |
-| testCannotBeBatchBurnIfContractIsDeactivated | gap | | P2 |
+| testCanBeBatchBurnEvenIfContractIsPaused | covered | `matrix` (paused, `BATCH_BURN`) | |
+| testCannotBeBatchBurnIfContractIsDeactivated | covered | `matrix` (deactivated, `BATCH_BURN`) | |
 | testCannotBeBatchBurnIfToIsFrozen | covered | `burn::batch_burn_is_atomic_on_frozen_account` | |
 | testCanBatchBurnWithExactBalances | gap | | P10 |
 | testBatchBurnPropagatesSpenderToRuleEngine | gap | | P4 |
@@ -207,14 +207,14 @@ These are the gaps and partials worth closing, most important first. The ids are
 | testRedefinedAllowanceWithApprove | partial | `erc20_base::approve_zero_is_always_allowed` | Overwrite from one non-zero value to another not tested (P7) |
 | testApproveZeroValue | partial | `erc20_base::approve_zero_is_always_allowed` | `Approval(…, 0)` event not checked |
 | testTransferFromOneAccountToAnother | covered | `erc20_base::transfer_moves_balance_and_emits_transfer_only` | |
-| testCannotTransferMoreTokensThanOwn | gap | | P1 |
+| testCannotTransferMoreTokensThanOwn | covered | `erc20_base::transfer_above_balance_reverts_with_insufficient_balance` | |
 | testCanTransferZeroValue | partial | `erc1404::zero_value_with_fully_frozen_balance_is_allowed` | Event and balances not checked (P10) |
 | testCanTransferToSelf | partial | `snapshot::self_transfer_reports_unchanged_balance` | Event and balance not checked (P10) |
 | testTransferByAnotherAccountWithTheRightAllowance | covered | `erc20_base::transfer_from_spends_allowance_and_emits_spend_without_approval` | |
 | testCannotTransferByAnotherAccountWithInsufficientAllowance | covered | `erc20_base::transfer_from_rejects_insufficient_allowance` | |
-| testCannotTransferByAnotherAccountWithInsufficientBalance | gap | | P1 |
+| testCannotTransferByAnotherAccountWithInsufficientBalance | covered | `erc20_base::transfer_from_above_balance_reverts_with_insufficient_balance` | |
 | transferFrom: testTransferFromOneAccountToAnother | covered | `erc20_base::transfer_from_spends_allowance_and_emits_spend_without_approval` | |
-| transferFrom: testCannotTransferMoreTokensThanOwn | gap | | P1 |
+| transferFrom: testCannotTransferMoreTokensThanOwn | covered | `erc20_base::transfer_from_above_balance_reverts_with_insufficient_balance` | |
 | transferFrom: testCanTransferFromZeroValue | gap | | P7 |
 | transferFrom: testCanTransferFromToSelf | gap | | P7 |
 

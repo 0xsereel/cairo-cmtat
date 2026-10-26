@@ -6,9 +6,10 @@
 //
 // - transfer, transfer_from, batch_transfer: active balance, paused, spender,
 //   from, to (transfer passes spender = 0; batch_transfer passes the minter);
-// - mint: deactivated, to (pause does not apply);
-// - burn, burn_from: active balance, deactivated, from (pause and spender do not
-//   apply);
+// - mint, batch_mint: deactivated, to (pause does not apply);
+// - burn, batch_burn, burn_from: active balance, deactivated, from (pause and
+//   spender do not apply);
+// - burn_and_mint: the burn checks, then the mint checks;
 // - forced_transfer (to an address or to 0): no checks;
 // - forced_burn (Light): requires `from` frozen, nothing else.
 //
@@ -27,9 +28,9 @@ use cairo_cmtat::interfaces::allowlist::{
     IAllowlistModuleDispatcher, IAllowlistModuleDispatcherTrait,
 };
 use cairo_cmtat::interfaces::burn::{
-    IBurnFromERC20SafeDispatcher, IBurnFromERC20SafeDispatcherTrait, IERC3643BurnSafeDispatcher,
-    IERC3643BurnSafeDispatcherTrait, IForcedBurnERC20SafeDispatcher,
-    IForcedBurnERC20SafeDispatcherTrait,
+    IBurnFromERC20SafeDispatcher, IBurnFromERC20SafeDispatcherTrait, IBurnMintERC20SafeDispatcher,
+    IBurnMintERC20SafeDispatcherTrait, IERC3643BurnSafeDispatcher, IERC3643BurnSafeDispatcherTrait,
+    IForcedBurnERC20SafeDispatcher, IForcedBurnERC20SafeDispatcherTrait,
 };
 use cairo_cmtat::interfaces::enforcement::{
     IERC3643EnforcementDispatcher, IERC3643EnforcementDispatcherTrait,
@@ -90,15 +91,22 @@ const BURN_FROM: u8 = 6;
 const FORCED_TRANSFER: u8 = 7;
 const FORCED_TRANSFER_TO_ZERO: u8 = 8;
 const FORCED_BURN: u8 = 9;
+const BATCH_MINT: u8 = 10;
+const BATCH_BURN: u8 = 11;
+const BURN_AND_MINT: u8 = 12;
 
-const COMMON_OPS: [u8; 8] = [
-    TRANSFER, TRANSFER_FROM, BATCH_TRANSFER, MINT, BURN, BURN_FROM, FORCED_TRANSFER,
-    FORCED_TRANSFER_TO_ZERO,
+const COMMON_OPS: [u8; 11] = [
+    TRANSFER, TRANSFER_FROM, BATCH_TRANSFER, MINT, BATCH_MINT, BURN, BATCH_BURN, BURN_AND_MINT,
+    BURN_FROM, FORCED_TRANSFER, FORCED_TRANSFER_TO_ZERO,
 ];
-const LIGHT_OPS: [u8; 6] = [TRANSFER, TRANSFER_FROM, BATCH_TRANSFER, MINT, BURN, FORCED_BURN];
+const LIGHT_OPS: [u8; 9] = [
+    TRANSFER, TRANSFER_FROM, BATCH_TRANSFER, MINT, BATCH_MINT, BURN, BATCH_BURN, BURN_AND_MINT,
+    FORCED_BURN,
+];
 /// Allowlist and Debt: no burn-from.
-const NO_BURN_FROM_OPS: [u8; 7] = [
-    TRANSFER, TRANSFER_FROM, BATCH_TRANSFER, MINT, BURN, FORCED_TRANSFER, FORCED_TRANSFER_TO_ZERO,
+const NO_BURN_FROM_OPS: [u8; 10] = [
+    TRANSFER, TRANSFER_FROM, BATCH_TRANSFER, MINT, BATCH_MINT, BURN, BATCH_BURN, BURN_AND_MINT,
+    FORCED_TRANSFER, FORCED_TRANSFER_TO_ZERO,
 ];
 
 /// Frozen amount for the partial-freeze case: above any balance, so the active
@@ -172,7 +180,15 @@ fn expected(op: u8, case: Case) -> Option<Array<felt252>> {
             Option::Some(array![errors::BURN_ENF_ADDRESS_IS_NOT_FROZEN])
         };
     }
-    if op == MINT {
+    if op == BURN_AND_MINT {
+        let burn = expected(BURN, case);
+        return if burn.is_some() {
+            burn
+        } else {
+            expected(MINT, case)
+        };
+    }
+    if op == MINT || op == BATCH_MINT {
         if case.pause == DEACTIVATED {
             return Option::Some(array![errors::ENFORCED_DEACTIVATION]);
         }
@@ -184,7 +200,7 @@ fn expected(op: u8, case: Case) -> Option<Array<felt252>> {
     if case.partially_frozen {
         return insufficient_unfrozen();
     }
-    if op == BURN || op == BURN_FROM {
+    if op == BURN || op == BATCH_BURN || op == BURN_FROM {
         if case.pause == DEACTIVATED {
             return Option::Some(array![errors::ENFORCED_DEACTIVATION]);
         }
@@ -350,6 +366,8 @@ fn grant_common_roles(token: ContractAddress) {
     grant(token, MINTER_ROLE, MINTER);
     grant(token, MINTER_ROLE, HOLDER);
     grant(token, BURNER_ROLE, BURNER);
+    // burn_and_mint needs both roles.
+    grant(token, MINTER_ROLE, BURNER);
 }
 
 #[feature("safe_dispatcher")]
@@ -372,6 +390,21 @@ fn run_op(token: ContractAddress, op: u8, case: Case) {
     } else if op == MINT {
         start_cheat_caller_address(token, MINTER);
         let result = IERC3643MintSafeDispatcher { contract_address: token }.mint(RECIPIENT, 1);
+        assert_case(result, expected, op, case);
+    } else if op == BATCH_MINT {
+        start_cheat_caller_address(token, MINTER);
+        let result = IERC3643MintSafeDispatcher { contract_address: token }
+            .batch_mint(array![RECIPIENT].span(), array![1].span());
+        assert_case(result, expected, op, case);
+    } else if op == BATCH_BURN {
+        start_cheat_caller_address(token, BURNER);
+        let result = IERC3643BurnSafeDispatcher { contract_address: token }
+            .batch_burn(array![HOLDER].span(), array![1].span());
+        assert_case(result, expected, op, case);
+    } else if op == BURN_AND_MINT {
+        start_cheat_caller_address(token, BURNER);
+        let result = IBurnMintERC20SafeDispatcher { contract_address: token }
+            .burn_and_mint(HOLDER, RECIPIENT, 1, 1, array![].span());
         assert_case(result, expected, op, case);
     } else if op == BURN {
         start_cheat_caller_address(token, BURNER);

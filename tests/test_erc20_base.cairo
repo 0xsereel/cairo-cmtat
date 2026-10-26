@@ -355,17 +355,43 @@ fn active_balance_is_checked_before_pause_and_freeze() {
     );
 }
 
-/// Without frozen tokens the active-balance check passes and ERC-20 reports the
-/// shortfall after the module checks.
+/// Without frozen tokens the active-balance check passes; ERC-20's own balance
+/// check only runs after the module checks, so a paused token reports the pause.
 #[test]
 #[feature("safe_dispatcher")]
-fn plain_insufficient_balance_reverts_after_module_checks() {
+fn module_checks_run_before_balance_check() {
     let token = setup();
     pause(token);
     assert_reverted_with(
         as_caller(token, HOLDER).transfer(RECIPIENT, SUPPLY + 1),
         array![errors::ENFORCED_PAUSE].span(),
     );
+}
+
+/// With nothing frozen and every module check passing, OpenZeppelin's balance
+/// check rejects the shortfall.
+#[test]
+#[feature("safe_dispatcher")]
+fn transfer_above_balance_reverts_with_insufficient_balance() {
+    let token = setup();
+    assert_reverted_with(
+        as_caller(token, HOLDER).transfer(RECIPIENT, SUPPLY + 1),
+        array![ERC20Component::Errors::INSUFFICIENT_BALANCE].span(),
+    );
+    assert_eq!(erc20(token).balance_of(HOLDER), SUPPLY);
+}
+
+#[test]
+#[feature("safe_dispatcher")]
+fn transfer_from_above_balance_reverts_with_insufficient_balance() {
+    let token = setup();
+    approve(token, HOLDER, SPENDER, SUPPLY + 1);
+    assert_reverted_with(
+        as_caller(token, SPENDER).transfer_from(HOLDER, RECIPIENT, SUPPLY + 1),
+        array![ERC20Component::Errors::INSUFFICIENT_BALANCE].span(),
+    );
+    assert_eq!(erc20(token).balance_of(HOLDER), SUPPLY);
+    assert_eq!(erc20(token).allowance(HOLDER, SPENDER), SUPPLY + 1);
 }
 
 //
