@@ -322,6 +322,8 @@ scripts/
   check_sizes.sh              class size check against the Starknet limits
 ```
 
+[`docs/parity.md`](docs/parity.md) maps each CMTAT v3.3.0 test case to the Cairo tests that cover it and lists the open items.
+
 CI runs `scarb fmt --check`, `scarb build` (failing on any warning), `snforge test` with coverage, and the size check.
 
 ---
