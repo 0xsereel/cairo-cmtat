@@ -424,6 +424,20 @@ fn approve_requires_listed_owner_and_spender() {
     assert!(as_holder(token).approve(SPENDER, 0).unwrap());
 }
 
+/// NM-3: a holder can still revoke an allowance after the spender is removed
+/// from the allowlist.
+#[test]
+#[feature("safe_dispatcher")]
+fn approve_zero_after_spender_is_delisted() {
+    let token = setup();
+    list(token, SPENDER, true);
+    assert!(as_holder(token).approve(SPENDER, 100).unwrap());
+    list(token, SPENDER, false);
+    assert_reverted_with(as_holder(token).approve(SPENDER, 50), cannot_send(SPENDER));
+    assert!(as_holder(token).approve(SPENDER, 0).unwrap());
+    assert_eq!(IERC20Dispatcher { contract_address: token }.allowance(HOLDER, SPENDER), 0);
+}
+
 #[test]
 fn can_send_and_receive_require_listing() {
     let token = setup();

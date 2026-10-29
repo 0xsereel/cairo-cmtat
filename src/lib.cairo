@@ -65,9 +65,8 @@ pub mod mocks {
     pub mod erc20_mock;
     pub mod forced_burn_mock;
     pub mod pause_mock;
-    pub mod rule_engine;
     pub mod rule_engine_recorder;
-    pub mod snapshot_engine;
     pub mod snapshot_engine_recorder;
+    pub mod snapshot_v2_mock;
     pub mod standard_v2_mock;
 }

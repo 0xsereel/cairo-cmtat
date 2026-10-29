@@ -194,6 +194,51 @@ fn transfer_from_keeps_infinite_allowance() {
     assert_eq!(erc20(token).allowance(HOLDER, SPENDER), Bounded::MAX);
 }
 
+/// Spending the whole allowance leaves it at zero.
+#[test]
+fn transfer_from_spends_exact_allowance() {
+    let token = setup();
+    approve(token, HOLDER, SPENDER, 100);
+    start_cheat_caller_address(token, SPENDER);
+    erc20(token).transfer_from(HOLDER, RECIPIENT, 100);
+    assert_eq!(erc20(token).allowance(HOLDER, SPENDER), 0);
+    assert_eq!(erc20(token).balance_of(RECIPIENT), 100);
+}
+
+/// A zero-value `transfer_from` needs no allowance and still emits `Transfer`
+/// and `Spend`.
+#[test]
+fn transfer_from_zero_value_without_allowance() {
+    let token = setup();
+    start_cheat_caller_address(token, SPENDER);
+    let mut spy = spy_events();
+    assert!(erc20(token).transfer_from(HOLDER, RECIPIENT, 0));
+    assert_eq!(erc20(token).balance_of(HOLDER), SUPPLY);
+    assert_eq!(erc20(token).balance_of(RECIPIENT), 0);
+    spy.assert_emitted_single(token, transfer_event(HOLDER, RECIPIENT, 0));
+    spy
+        .assert_only_event(
+            token,
+            ERC20BaseComponent::Event::Spend(
+                ERC20BaseComponent::Spend { account: HOLDER, spender: SPENDER, value: 0 },
+            ),
+        );
+}
+
+/// `transfer_from(owner, owner)` keeps the balance but still spends the
+/// allowance.
+#[test]
+fn transfer_from_to_self_spends_allowance() {
+    let token = setup();
+    approve(token, HOLDER, SPENDER, 150);
+    start_cheat_caller_address(token, SPENDER);
+    let mut spy = spy_events();
+    assert!(erc20(token).transfer_from(HOLDER, HOLDER, 100));
+    assert_eq!(erc20(token).balance_of(HOLDER), SUPPLY);
+    assert_eq!(erc20(token).allowance(HOLDER, SPENDER), 50);
+    spy.assert_emitted_single(token, transfer_event(HOLDER, HOLDER, 100));
+}
+
 #[test]
 #[feature("safe_dispatcher")]
 fn transfer_from_rejects_insufficient_allowance() {
@@ -407,6 +452,37 @@ fn approve_zero_is_always_allowed() {
     pause(token);
     approve(token, HOLDER, SPENDER, 0);
     assert_eq!(erc20(token).allowance(HOLDER, SPENDER), 0);
+}
+
+/// Revoking stays possible on a deactivated token; granting does not.
+#[test]
+#[feature("safe_dispatcher")]
+fn approve_zero_is_allowed_when_deactivated() {
+    let token = setup();
+    approve(token, HOLDER, SPENDER, 100);
+    deactivate(token);
+    assert_reverted_with(
+        as_caller(token, HOLDER).approve(SPENDER, 1), array![errors::ENFORCED_PAUSE].span(),
+    );
+    assert!(as_caller(token, HOLDER).approve(SPENDER, 0).unwrap());
+    assert_eq!(erc20(token).allowance(HOLDER, SPENDER), 0);
+}
+
+/// A non-zero allowance is replaced, not added to.
+#[test]
+fn approve_overwrites_nonzero_allowance() {
+    let token = setup();
+    approve(token, HOLDER, SPENDER, 150);
+    let mut spy = spy_events();
+    approve(token, HOLDER, SPENDER, 40);
+    assert_eq!(erc20(token).allowance(HOLDER, SPENDER), 40);
+    spy
+        .assert_only_event(
+            token,
+            ERC20Component::Event::Approval(
+                ERC20Component::Approval { owner: HOLDER, spender: SPENDER, value: 40 },
+            ),
+        );
 }
 
 #[test]

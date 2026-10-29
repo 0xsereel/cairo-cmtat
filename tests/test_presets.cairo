@@ -5,6 +5,7 @@
 // Behaviour lives elsewhere: validation in test_validation_matrix, interface ids
 // in test_interface_ids, events in test_preset_events.
 
+use cairo_cmtat::errors;
 use cairo_cmtat::interfaces::allowlist::{
     IAllowlistModuleSafeDispatcher, IAllowlistModuleSafeDispatcherTrait,
 };
@@ -62,11 +63,15 @@ use openzeppelin::interfaces::upgrades::{
     IUpgradeableDispatcher, IUpgradeableDispatcherTrait, IUpgradeableSafeDispatcher,
     IUpgradeableSafeDispatcherTrait,
 };
-use snforge_std::{DeclareResultTrait, declare, get_class_hash, start_cheat_caller_address};
+use openzeppelin::utils::serde::SerializedAppend;
+use snforge_std::{
+    ContractClassTrait, DeclareResultTrait, declare, get_class_hash, start_cheat_caller_address,
+};
 use starknet::ContractAddress;
 use crate::utils::{
     ADMIN, HOLDER, OTHER, RECIPIENT, ZERO, assert_reverted_with, deploy_allowlist_preset,
     deploy_debt_preset, deploy_light_preset, deploy_snapshot_preset, deploy_standard,
+    standard_erc20_attributes, standard_extra_information,
 };
 
 /// Optional modules, per CMTAT variant.
@@ -298,6 +303,31 @@ fn deployment_defaults() {
         );
         assert!(!IERC3643PauseDispatcher { contract_address: token }.paused(), "{}", preset.name);
         assert!(!IERC8343Dispatcher { contract_address: token }.deactivated(), "{}", preset.name);
+    }
+}
+
+/// No preset deploys without a default admin.
+#[test]
+fn constructor_rejects_zero_admin() {
+    let names: Array<ByteArray> = array![
+        "CMTATLight", "CMTATAllowlist", "CMTATStandard", "CMTATDebt", "CMTATSnapshot",
+    ];
+    for name in names {
+        let mut calldata = array![];
+        calldata.append_serde(ZERO);
+        calldata.append_serde(standard_erc20_attributes());
+        if name != "CMTATLight" {
+            calldata.append_serde(standard_extra_information());
+        }
+        if name != "CMTATLight" && name != "CMTATAllowlist" {
+            calldata.append_serde(ZERO); // rule engine
+        }
+        match declare(name.clone()).unwrap().contract_class().deploy(@calldata) {
+            Result::Ok(_) => panic!("{} deployed with admin 0", name),
+            Result::Err(panic_data) => assert_eq!(
+                panic_data, array![errors::ACCESS_CONTROL_ADDRESS_ZERO], "{}", name,
+            ),
+        }
     }
 }
 

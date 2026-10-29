@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Upgrades and the migration pattern: every preset starts at storage version 1;
-// upgrading Standard to a V2 class and running its `migrate` keeps every
-// module's storage, and `migrate` runs once, for the admin only.
+// upgrading Standard or Snapshot to a V2 class and running its `migrate` keeps
+// every module's storage, and `migrate` runs once, for the admin only.
 
 use cairo_cmtat::components::upgrade::UpgradeComponent;
 use cairo_cmtat::errors::INVALID_INITIALIZATION;
@@ -20,9 +20,18 @@ use cairo_cmtat::interfaces::pause::{IERC3643PauseDispatcher, IERC3643PauseDispa
 use cairo_cmtat::interfaces::rule_engine::{
     IValidationRuleEngineDispatcher, IValidationRuleEngineDispatcherTrait,
 };
+use cairo_cmtat::interfaces::snapshot::{
+    ISnapshotEngineModuleDispatcher, ISnapshotEngineModuleDispatcherTrait,
+};
 use cairo_cmtat::interfaces::upgrade::{IUpgradeVersionDispatcher, IUpgradeVersionDispatcherTrait};
 use cairo_cmtat::mocks::rule_engine_recorder::{
     IRuleEngineRecorderDispatcher, IRuleEngineRecorderDispatcherTrait,
+};
+use cairo_cmtat::mocks::snapshot_engine_recorder::{
+    ISnapshotEngineRecorderDispatcher, ISnapshotEngineRecorderDispatcherTrait, SnapshotCall,
+};
+use cairo_cmtat::mocks::snapshot_v2_mock::{
+    ISnapshotV2MockDispatcher, ISnapshotV2MockDispatcherTrait,
 };
 use cairo_cmtat::mocks::standard_v2_mock::{
     IStandardV2MockDispatcher, IStandardV2MockDispatcherTrait, IStandardV2MockSafeDispatcher,
@@ -134,7 +143,12 @@ fn upgrade_and_migrate_keep_storage() {
     assert_eq!(erc20.allowance(HOLDER, SPENDER), 50);
     assert!(access.has_role(MINTER_ROLE, MINTER));
     assert!(!access.has_role(MINTER_ROLE, OTHER));
-    assert_eq!(ICMTATBaseDispatcher { contract_address: token }.token_id(), "CH0000000000");
+    let base = ICMTATBaseDispatcher { contract_address: token };
+    assert_eq!(base.token_id(), "CH0000000000");
+    assert_eq!(base.information(), "Standard CMTAT");
+    assert_eq!(base.terms().name, "Terms");
+    assert_eq!(base.terms().doc.uri, "ipfs://terms");
+    assert_eq!(base.terms().doc.document_hash, 0xabcd);
     let (uri, hash, _) = IERC1643Dispatcher { contract_address: token }.get_document('prospectus');
     assert_eq!(uri, "ipfs://p");
     assert_eq!(hash, 7);
@@ -154,6 +168,44 @@ fn upgrade_and_migrate_keep_storage() {
     erc20.transfer(RECIPIENT, 700);
     assert_eq!(erc20.balance_of(RECIPIENT), 700);
     assert_eq!(IRuleEngineRecorderDispatcher { contract_address: engine }.call_count(), 2);
+}
+
+/// Snapshot variant: the SnapshotEngine, terms and information survive the
+/// upgrade, and the new class keeps notifying the engine.
+#[test]
+fn snapshot_upgrade_keeps_snapshot_engine() {
+    let token = deploy_snapshot_preset(ZERO);
+    let engine = openzeppelin_testing::declare_and_deploy("SnapshotEngineRecorder", array![]);
+    start_cheat_caller_address(token, ADMIN);
+    IERC3643MintDispatcher { contract_address: token }.mint(HOLDER, 100);
+    ISnapshotEngineModuleDispatcher { contract_address: token }.set_snapshot_engine(engine);
+    let base = ICMTATBaseDispatcher { contract_address: token };
+    base.set_information("Updated before upgrade");
+    let terms = base.terms();
+
+    let new_class = *declare("CMTATSnapshotV2Mock").unwrap().contract_class().class_hash;
+    IUpgradeableDispatcher { contract_address: token }.upgrade(new_class);
+    ISnapshotV2MockDispatcher { contract_address: token }.migrate();
+    assert_eq!(get_class_hash(token), new_class);
+    assert_eq!(version_of(token), 2);
+
+    assert_eq!(
+        ISnapshotEngineModuleDispatcher { contract_address: token }.snapshot_engine(), engine,
+    );
+    assert_eq!(base.information(), "Updated before upgrade");
+    assert_eq!(base.terms(), terms);
+    assert_eq!(base.token_id(), "CH0000000000");
+
+    start_cheat_caller_address(token, HOLDER);
+    IERC20Dispatcher { contract_address: token }.transfer(RECIPIENT, 40);
+    let recorder = ISnapshotEngineRecorderDispatcher { contract_address: engine };
+    assert_eq!(recorder.call_count(), 1);
+    assert_eq!(
+        recorder.call_at(0),
+        SnapshotCall {
+            from: HOLDER, to: RECIPIENT, balance_from: 100, balance_to: 0, total_supply: 100,
+        },
+    );
 }
 
 #[test]

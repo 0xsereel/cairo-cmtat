@@ -28,7 +28,7 @@ These differences are not counted as partial anywhere in the tables:
 |---|---:|---:|---:|---:|---:|
 | `ERC20MintModuleCommon` | 34 | 31 | 1 | 2 | 0 |
 | `ERC20BurnModuleCommon` | 30 | 26 | 1 | 3 | 0 |
-| `ERC20BaseModuleCommon` | 25 | 18 | 5 | 2 | 0 |
+| `ERC20BaseModuleCommon` | 25 | 21 | 4 | 0 | 0 |
 | `ERC20EnforcementModuleCommon` | 56 | 52 | 4 | 0 | 0 |
 | `ERC20EnforcementERC7551ModuleCommon` | 4 | 4 | 0 | 0 | 0 |
 | `EnforcementModuleCommon` | 21 | 16 | 5 | 0 | 0 |
@@ -37,19 +37,19 @@ These differences are not counted as partial anywhere in the tables:
 | `ValidationModule/ValidationModuleSetRuleEngineCommon` | 6 | 4 | 1 | 0 | 1 |
 | `ValidationModule/RuleEngineReentrancyCommon` | 7 | 5 | 1 | 0 | 1 |
 | `ValidationModule/RuleEngineSpenderDispatchCommon` | 11 | 9 | 0 | 0 | 2 |
-| `PauseModuleCommon` | 15 | 12 | 2 | 1 | 0 |
+| `PauseModuleCommon` | 15 | 13 | 2 | 0 | 0 |
 | `AuthorizationModule/AuthorizationModuleCommon` | 5 | 3 | 2 | 0 | 0 |
 | `standard/modules/RuleEngineMockStatefulRule` | 2 | 0 | 0 | 0 | 2 |
-| `AllowlistModuleCommon` | 36 | 24 | 11 | 1 | 0 |
+| `AllowlistModuleCommon` | 36 | 25 | 10 | 1 | 0 |
 | `DocumentModule/DocumentModuleCommon` | 13 | 12 | 0 | 0 | 1 |
 | `ExtraInfoModuleCommon` | 8 | 8 | 0 | 0 | 0 |
 | `DebtModule/DebtModuleCommon` | 5 | 5 | 0 | 0 | 0 |
 | `SnapshotModuleCommon/SnapshotModuleSetSnapshotEngineCommon` | 6 | 4 | 0 | 0 | 2 |
 | `VersionModuleCommon` | 1 | 1 | 0 | 0 | 0 |
 | `CMTATIntegrationCommon` | 4 | 3 | 1 | 0 | 0 |
-| `proxy/general` (upgrades) | 10 | 2 | 1 | 1 | 6 |
-| `deployment/*` (constructor behaviour) | 13 | 7 | 4 | 0 | 2 |
-| **Total** | **343** | **274** | **42** | **10** | **17** |
+| `proxy/general` (upgrades) | 10 | 4 | 0 | 0 | 6 |
+| `deployment/*` (constructor behaviour) | 13 | 8 | 3 | 0 | 2 |
+| **Total** | **343** | **282** | **38** | **6** | **17** |
 
 ### Families not ported
 
@@ -76,16 +76,9 @@ These are the gaps and partials worth closing, most important first. The ids are
 4. ~~**P4: RuleEngine on batch paths.**~~ Closed. A rejecting engine is now tested on `transfer_from`, `batch_mint` and `batch_transfer` with full revert data. Dispatch is checked for `batch_burn` and `burn_self`, and the mint rejection now checks the full data.
 5. ~~**P5: RuleEngine read path.**~~ Closed. The recorder's reads now depend on their arguments (a blocked address, a maximum value). Tests show that mint- and burn-shaped reads, the spender and the value all reach the engine, and that detect returns 0 when the engine allows.
 6. ~~**P6: active-balance edge cases.**~~ Closed. Covered: minting above a frozen amount, reads at a non-zero active balance and one above it, zero-value reads when fully frozen, `set_frozen_tokens` to 0 and to the same non-zero value, `set_frozen_tokens(ZERO, 0)` check order, and zero-address checks on the with-data variants.
-7. **P7: allowance edge cases.**
-   - `approve(0)` while deactivated.
-   - `approve(0)` after the spender is removed from the allowlist (NM-3).
-   - Overwriting a non-zero allowance with another non-zero value.
-   - `transfer_from` of zero with no allowance, `transfer_from` to self, and spending an allowance exactly.
+7. ~~**P7: allowance edge cases.**~~ Closed. Covered: `approve(0)` while deactivated and after the spender is delisted (NM-3), overwriting a non-zero allowance, zero-value `transfer_from` without allowance, `transfer_from` to self, and spending an allowance exactly.
 8. ~~**P8: reentrancy with partial freeze.**~~ Closed by `rule_engine::reentrant_engine_cannot_move_frozen_tokens`.
-9. **P9: upgrade coverage.**
-   - Upgrade and migrate a Snapshot or Debt preset, then check `snapshot_engine()` is kept and still notified.
-   - Check `information()` and `terms()` after an upgrade.
-   - Deploy a preset with `admin = 0` (today only the access mock tests this).
+9. ~~**P9: upgrade coverage.**~~ Closed. A Snapshot preset upgraded to `CMTATSnapshotV2Mock` keeps its SnapshotEngine, which is still notified; `information()` and `terms()` are checked after both upgrade tests; every preset rejects `admin = 0`.
 10. **P10: events and argument order (minor).**
     - The `Spend` value when a forced transfer caps the spend, and no `Spend` when the allowance is infinite.
     - The unfreeze `AddressFrozen` event with data.
@@ -99,8 +92,6 @@ These are the gaps and partials worth closing, most important first. The ids are
     - Zero-value and self `Transfer` events.
     - `batch_balance_of` with an empty span.
     - `set_rule_engine` and `set_snapshot_engine` from zero to zero.
-
-`src/mocks/rule_engine.cairo` (`WhitelistRuleEngine`) and `src/mocks/snapshot_engine.cairo` (`SimpleSnapshotEngine`) are legacy samples that no test uses.
 
 ---
 
@@ -196,7 +187,7 @@ These are the gaps and partials worth closing, most important first. The ids are
 | testCannotNonAdminUpdateSymbol | covered | `attributes::set_name_and_symbol_require_default_admin` | |
 | testHasTheCorrectBalanceBatch | partial | `erc20_base::batch_balance_of_returns_balances_and_total_supply` | Empty input not tested (P10) |
 | testApproveAllowance | covered | `preset_events::run_core` | |
-| testRedefinedAllowanceWithApprove | partial | `erc20_base::approve_zero_is_always_allowed` | Overwrite from one non-zero value to another not tested (P7) |
+| testRedefinedAllowanceWithApprove | covered | `erc20_base::approve_overwrites_nonzero_allowance`, `approve_zero_is_always_allowed` | |
 | testApproveZeroValue | partial | `erc20_base::approve_zero_is_always_allowed` | `Approval(…, 0)` event not checked |
 | testTransferFromOneAccountToAnother | covered | `erc20_base::transfer_moves_balance_and_emits_transfer_only` | |
 | testCannotTransferMoreTokensThanOwn | covered | `erc20_base::transfer_above_balance_reverts_with_insufficient_balance` | |
@@ -207,8 +198,8 @@ These are the gaps and partials worth closing, most important first. The ids are
 | testCannotTransferByAnotherAccountWithInsufficientBalance | covered | `erc20_base::transfer_from_above_balance_reverts_with_insufficient_balance` | |
 | transferFrom: testTransferFromOneAccountToAnother | covered | `erc20_base::transfer_from_spends_allowance_and_emits_spend_without_approval` | |
 | transferFrom: testCannotTransferMoreTokensThanOwn | covered | `erc20_base::transfer_from_above_balance_reverts_with_insufficient_balance` | |
-| transferFrom: testCanTransferFromZeroValue | gap | | P7 |
-| transferFrom: testCanTransferFromToSelf | gap | | P7 |
+| transferFrom: testCanTransferFromZeroValue | covered | `erc20_base::transfer_from_zero_value_without_allowance` | |
+| transferFrom: testCanTransferFromToSelf | covered | `erc20_base::transfer_from_to_self_spends_allowance` | |
 
 ### ERC20EnforcementModuleCommon
 
@@ -367,7 +358,7 @@ These are the gaps and partials worth closing, most important first. The ids are
 | testCannotTransferTokenWhenPausedWithTransfer | covered | `matrix` (paused), `erc1404::messages_match_cmtat` | |
 | testCanRevokeAllowanceWhenPaused | covered | `erc20_base::approve_zero_is_always_allowed` | |
 | testCannotGrantAllowanceWhenPaused | covered | `erc20_base::approve_reverts_when_paused` | |
-| testCanRevokeAllowanceWhenDeactivated | gap | | P7 |
+| testCanRevokeAllowanceWhenDeactivated | covered | `erc20_base::approve_zero_is_allowed_when_deactivated` | |
 | testCannotTransferTokenWhenPausedWithTransferFrom | covered | `matrix`, `erc20_base::transfer_from_reverts_when_paused` | |
 | testCanDeactivatedByAdminIfContractIsPaused | covered | `pause::deactivate_by_admin_emits_event`, `unpause_after_deactivation_reverts`, `matrix` | |
 | testCannotDeactivatedIfNotInPause | covered | `pause::deactivate_requires_pause` | |
@@ -402,7 +393,7 @@ These are the gaps and partials worth closing, most important first. The ids are
 | CanTransferMatrix unlisted/unlisted | gap | | P10 |
 | ZeroValueTransferRequiresSenderAndReceiverAllowlisted | covered | `allowlist::zero_value_transfer_requires_listing` | |
 | CannotApproveWhenOwnerIsNotAllowlisted | covered | `allowlist::approve_requires_listed_owner_and_spender` | |
-| CanRevokeAllowanceWhenSpenderIsNotAllowlisted | partial | same | Revoked with the owner unlisted, not the spender (P7) |
+| CanRevokeAllowanceWhenSpenderIsNotAllowlisted | covered | `allowlist::approve_zero_after_spender_is_delisted` | |
 | CannotApproveWhenSpenderIsNotAllowlisted | covered | same | |
 | CannotMintToNoAllowlistAddress | partial | `allowlist::mint_to_unlisted_reverts` | Read not checked |
 | CannotBatchMintToNoAllowlistAddress | covered | `allowlist::batch_mint_to_unlisted_reverts` | |
@@ -446,10 +437,10 @@ These are the gaps and partials worth closing, most important first. The ids are
 | Integration: CanDeactivatedByAdminIfContractIsPaused | covered | `pause`, `erc1404::deactivated_code_1_but_transfer_reverts_with_pause`, `matrix` | |
 | Upgrade: KeepStorageForTokens | covered | `upgrade::upgrade_and_migrate_keep_storage`, `presets::upgrade_requires_default_admin` | |
 | Upgrade: MigrationCannotRunTwice | covered | `upgrade::migrate_runs_once`, `migrate_requires_default_admin`, `fresh_v2_deployment_cannot_migrate` | |
-| Upgrade: UnchangedStateIsPreservedAcrossTheUpgrade | partial | `upgrade::upgrade_and_migrate_keep_storage` | `information()` and `terms()` not checked (P9) |
-| Upgrade: SnapshotVariantKeepsTheSnapshotEngine | gap | | P9 |
+| Upgrade: UnchangedStateIsPreservedAcrossTheUpgrade | covered | `upgrade::upgrade_and_migrate_keep_storage`, `snapshot_upgrade_keeps_snapshot_engine` | |
+| Upgrade: SnapshotVariantKeepsTheSnapshotEngine | covered | `upgrade::snapshot_upgrade_keeps_snapshot_engine` | |
 | Upgrade: v3.2.0 fixture, name/symbol layout migration, DocumentEngine and SnapshotEngine removal (6) | n/a | | Specific to the Solidity v3.2.0 to v3.3.0 upgrade |
-| Deployment: admin = 0 rejected (proxy, standalone) | partial | `access::initializer_rejects_zero_admin` | Tested on the access mock, not a preset (P9) |
+| Deployment: admin = 0 rejected (proxy, standalone) | covered | `presets::constructor_rejects_zero_admin`, `access::initializer_rejects_zero_admin` | |
 | Deployment: Standard with or without a rule engine (2) | covered | `standard::constructor_without_rule_engine`, `constructor_sets_rule_engine` | |
 | Deployment: CannotInitializeStandardProxyTwice | n/a | | Constructor |
 | Deployment: ERC-721 mock | n/a | | Not ported |
