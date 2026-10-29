@@ -9,7 +9,10 @@ use cairo_cmtat::interfaces::allowlist::{
     IAllowlistModuleDispatcher, IAllowlistModuleDispatcherTrait, IAllowlistModuleSafeDispatcher,
     IAllowlistModuleSafeDispatcherTrait,
 };
-use cairo_cmtat::interfaces::burn::{IERC3643BurnSafeDispatcher, IERC3643BurnSafeDispatcherTrait};
+use cairo_cmtat::interfaces::burn::{
+    IERC3643BurnDispatcher, IERC3643BurnDispatcherTrait, IERC3643BurnSafeDispatcher,
+    IERC3643BurnSafeDispatcherTrait,
+};
 use cairo_cmtat::interfaces::enforcement::{
     IERC3643EnforcementDispatcher, IERC3643EnforcementDispatcherTrait,
 };
@@ -20,6 +23,7 @@ use cairo_cmtat::interfaces::erc20_enforcement::{
 };
 use cairo_cmtat::interfaces::extra_information::{ICMTATBaseDispatcher, ICMTATBaseDispatcherTrait};
 use cairo_cmtat::interfaces::mint::{
+    IERC3643BatchTransferSafeDispatcher, IERC3643BatchTransferSafeDispatcherTrait,
     IERC3643MintDispatcher, IERC3643MintDispatcherTrait, IERC3643MintSafeDispatcher,
     IERC3643MintSafeDispatcherTrait,
 };
@@ -256,6 +260,95 @@ fn burn_from_unlisted_reverts() {
     assert_reverted_with(
         IERC3643BurnSafeDispatcher { contract_address: token }.burn(HOLDER, 1), cannot_send(HOLDER),
     );
+}
+
+/// The first unlisted recipient reverts the whole batch.
+#[test]
+#[feature("safe_dispatcher")]
+fn batch_mint_to_unlisted_reverts() {
+    let token = setup();
+    start_cheat_caller_address(token, MINTER);
+    assert_reverted_with(
+        IERC3643MintSafeDispatcher { contract_address: token }
+            .batch_mint(array![HOLDER, RECIPIENT].span(), array![1, 1].span()),
+        cannot_receive(RECIPIENT),
+    );
+    assert_eq!(IERC20Dispatcher { contract_address: token }.balance_of(HOLDER), SUPPLY);
+}
+
+/// Only recipients are checked on mint: the minter itself is not listed.
+#[test]
+fn unlisted_minter_can_batch_mint() {
+    let token = setup();
+    list(token, RECIPIENT, true);
+    start_cheat_caller_address(token, MINTER);
+    IERC3643MintDispatcher { contract_address: token }
+        .batch_mint(array![HOLDER, RECIPIENT].span(), array![1, 2].span());
+    assert_eq!(IERC20Dispatcher { contract_address: token }.balance_of(RECIPIENT), 2);
+}
+
+/// Only the burnt account is checked: the burner itself is not listed.
+#[test]
+fn unlisted_burner_can_batch_burn_listed_account() {
+    let token = setup();
+    start_cheat_caller_address(token, BURNER);
+    IERC3643BurnDispatcher { contract_address: token }
+        .batch_burn(array![HOLDER].span(), array![1].span());
+    assert_eq!(IERC20Dispatcher { contract_address: token }.total_supply(), SUPPLY - 1);
+}
+
+#[test]
+#[feature("safe_dispatcher")]
+fn batch_burn_from_unlisted_reverts() {
+    let token = setup();
+    list(token, HOLDER, false);
+    start_cheat_caller_address(token, BURNER);
+    assert_reverted_with(
+        IERC3643BurnSafeDispatcher { contract_address: token }
+            .batch_burn(array![HOLDER].span(), array![1].span()),
+        cannot_send(HOLDER),
+    );
+}
+
+#[test]
+#[feature("safe_dispatcher")]
+fn batch_transfer_to_unlisted_reverts() {
+    let token = setup();
+    start_cheat_caller_address(token, ADMIN);
+    IAccessControlDispatcher { contract_address: token }.grant_role(MINTER_ROLE, HOLDER);
+    start_cheat_caller_address(token, HOLDER);
+    assert_reverted_with(
+        IERC3643BatchTransferSafeDispatcher { contract_address: token }
+            .batch_transfer(array![RECIPIENT].span(), array![1].span()),
+        cannot_receive(RECIPIENT),
+    );
+}
+
+#[test]
+#[feature("safe_dispatcher")]
+fn transfer_from_to_unlisted_reverts() {
+    let token = setup();
+    list(token, SPENDER, true);
+    start_cheat_caller_address(token, HOLDER);
+    IERC20Dispatcher { contract_address: token }.approve(SPENDER, 1);
+    start_cheat_caller_address(token, SPENDER);
+    assert_reverted_with(
+        IERC20SafeDispatcher { contract_address: token }.transfer_from(HOLDER, RECIPIENT, 1),
+        cannot_receive(RECIPIENT),
+    );
+}
+
+/// A zero-value transfer still needs both parties listed, on both paths.
+#[test]
+#[feature("safe_dispatcher")]
+fn zero_value_transfer_requires_listing() {
+    let token = setup();
+    let read = IERC3643ComplianceReadDispatcher { contract_address: token };
+    assert!(!read.can_transfer(HOLDER, RECIPIENT, 0));
+    assert_reverted_with(as_holder(token).transfer(RECIPIENT, 0), cannot_receive(RECIPIENT));
+    list(token, RECIPIENT, true);
+    assert!(read.can_transfer(HOLDER, RECIPIENT, 0));
+    assert!(as_holder(token).transfer(RECIPIENT, 0).unwrap());
 }
 
 #[test]

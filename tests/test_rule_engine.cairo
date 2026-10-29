@@ -16,8 +16,10 @@ use cairo_cmtat::interfaces::erc20_enforcement::{
     IERC7943FungibleEnforcementDispatcher, IERC7943FungibleEnforcementDispatcherTrait,
 };
 use cairo_cmtat::interfaces::mint::{
-    IERC3643BatchTransferDispatcher, IERC3643BatchTransferDispatcherTrait, IERC3643MintDispatcher,
-    IERC3643MintDispatcherTrait, IERC3643MintSafeDispatcher, IERC3643MintSafeDispatcherTrait,
+    IERC3643BatchTransferDispatcher, IERC3643BatchTransferDispatcherTrait,
+    IERC3643BatchTransferSafeDispatcher, IERC3643BatchTransferSafeDispatcherTrait,
+    IERC3643MintDispatcher, IERC3643MintDispatcherTrait, IERC3643MintSafeDispatcher,
+    IERC3643MintSafeDispatcherTrait,
 };
 use cairo_cmtat::interfaces::pause::{IERC3643PauseDispatcher, IERC3643PauseDispatcherTrait};
 use cairo_cmtat::interfaces::rule_engine::{
@@ -31,7 +33,7 @@ use cairo_cmtat::interfaces::validation::{
 use cairo_cmtat::mocks::rule_engine_recorder::{
     IRuleEngineRecorderDispatcher, IRuleEngineRecorderDispatcherTrait, RecordedCall,
 };
-use cairo_cmtat::roles::{BURNER_FROM_ROLE, BURNER_ROLE, MINTER_ROLE, PAUSER_ROLE};
+use cairo_cmtat::roles::{BURNER_FROM_ROLE, BURNER_ROLE, BURNER_SELF_ROLE, MINTER_ROLE, PAUSER_ROLE};
 use openzeppelin::access::accesscontrol::AccessControlComponent;
 use openzeppelin::interfaces::accesscontrol::{
     IAccessControlDispatcher, IAccessControlDispatcherTrait,
@@ -91,6 +93,18 @@ fn erc20(token: ContractAddress) -> IERC20Dispatcher {
 fn assert_single_call(s: Setup, expected: RecordedCall) {
     assert_eq!(recorder(s).call_count(), 1);
     assert_eq!(recorder(s).call_at(0), expected);
+}
+
+/// Panic data of a call the recorder rejected, as seen by the token's caller:
+/// the engine's revert, then one `ENTRYPOINT_FAILED` for the engine call (the
+/// token's own one is added by `assert_reverted_with`).
+fn rejected(from: ContractAddress, to: ContractAddress, value: u256) -> Span<felt252> {
+    let mut data = array![errors::RULE_ENGINE_INVALID_TRANSFER];
+    data.append_serde(from);
+    data.append_serde(to);
+    data.append_serde(value);
+    data.append('ENTRYPOINT_FAILED');
+    data.span()
 }
 
 fn with_spender(
@@ -224,6 +238,27 @@ fn batch_transfer_passes_minter_as_spender_and_from() {
     assert_single_call(s, with_spender(HOLDER, HOLDER, RECIPIENT, 10));
 }
 
+#[test]
+fn batch_burn_calls_engine_per_account() {
+    let s = setup();
+    start_cheat_caller_address(s.token, BURNER);
+    IERC3643BurnDispatcher { contract_address: s.token }
+        .batch_burn(array![HOLDER, HOLDER].span(), array![10, 20].span());
+    assert_eq!(recorder(s).call_count(), 2);
+    assert_eq!(recorder(s).call_at(0), with_spender(BURNER, HOLDER, ZERO, 10));
+    assert_eq!(recorder(s).call_at(1), with_spender(BURNER, HOLDER, ZERO, 20));
+}
+
+/// Self-burn passes the holder as spender.
+#[test]
+fn burn_self_passes_holder_as_spender() {
+    let s = setup();
+    IAccessControlDispatcher { contract_address: s.token }.grant_role(BURNER_SELF_ROLE, HOLDER);
+    start_cheat_caller_address(s.token, HOLDER);
+    IBurnFromERC20Dispatcher { contract_address: s.token }.burn_self(10);
+    assert_single_call(s, with_spender(HOLDER, HOLDER, ZERO, 10));
+}
+
 /// Forced transfers bypass every check, including the RuleEngine.
 #[test]
 fn forced_transfer_does_not_call_engine() {
@@ -252,14 +287,24 @@ fn rejecting_engine_reverts_transfer() {
     let s = setup();
     recorder(s).set_reject(true);
     start_cheat_caller_address(s.token, HOLDER);
-    let mut expected = array![errors::RULE_ENGINE_INVALID_TRANSFER];
-    expected.append_serde(HOLDER);
-    expected.append_serde(RECIPIENT);
-    expected.append_serde(10_u256);
-    expected.append('ENTRYPOINT_FAILED');
     let result = IERC20SafeDispatcher { contract_address: s.token }.transfer(RECIPIENT, 10);
-    assert_reverted_with(result, expected.span());
+    assert_reverted_with(result, rejected(HOLDER, RECIPIENT, 10));
     assert_eq!(erc20(s.token).balance_of(RECIPIENT), 0);
+}
+
+#[test]
+#[feature("safe_dispatcher")]
+fn rejecting_engine_reverts_transfer_from() {
+    let s = setup();
+    start_cheat_caller_address(s.token, HOLDER);
+    erc20(s.token).approve(SPENDER, 10);
+    recorder(s).set_reject(true);
+    start_cheat_caller_address(s.token, SPENDER);
+    let result = IERC20SafeDispatcher { contract_address: s.token }
+        .transfer_from(HOLDER, RECIPIENT, 10);
+    assert_reverted_with(result, rejected(HOLDER, RECIPIENT, 10));
+    assert_eq!(erc20(s.token).balance_of(RECIPIENT), 0);
+    assert_eq!(erc20(s.token).allowance(HOLDER, SPENDER), 10);
 }
 
 #[test]
@@ -269,7 +314,34 @@ fn rejecting_engine_reverts_mint() {
     recorder(s).set_reject(true);
     start_cheat_caller_address(s.token, MINTER);
     let result = IERC3643MintSafeDispatcher { contract_address: s.token }.mint(RECIPIENT, 10);
-    assert_eq!(*result.unwrap_err().at(0), errors::RULE_ENGINE_INVALID_TRANSFER);
+    assert_reverted_with(result, rejected(ZERO, RECIPIENT, 10));
+    assert_eq!(erc20(s.token).total_supply(), SUPPLY);
+}
+
+/// The first rejected item reverts the whole batch.
+#[test]
+#[feature("safe_dispatcher")]
+fn rejecting_engine_reverts_batch_mint() {
+    let s = setup();
+    recorder(s).set_reject(true);
+    start_cheat_caller_address(s.token, MINTER);
+    let result = IERC3643MintSafeDispatcher { contract_address: s.token }
+        .batch_mint(array![RECIPIENT, OTHER].span(), array![10, 20].span());
+    assert_reverted_with(result, rejected(ZERO, RECIPIENT, 10));
+    assert_eq!(erc20(s.token).total_supply(), SUPPLY);
+}
+
+#[test]
+#[feature("safe_dispatcher")]
+fn rejecting_engine_reverts_batch_transfer() {
+    let s = setup();
+    IAccessControlDispatcher { contract_address: s.token }.grant_role(MINTER_ROLE, HOLDER);
+    recorder(s).set_reject(true);
+    start_cheat_caller_address(s.token, HOLDER);
+    let result = IERC3643BatchTransferSafeDispatcher { contract_address: s.token }
+        .batch_transfer(array![RECIPIENT, OTHER].span(), array![10, 20].span());
+    assert_reverted_with(result, rejected(HOLDER, RECIPIENT, 10));
+    assert_eq!(erc20(s.token).balance_of(HOLDER), SUPPLY);
 }
 
 /// Module checks run before the engine: a paused transfer never reaches it.

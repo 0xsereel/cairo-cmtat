@@ -26,21 +26,21 @@ These differences are not counted as partial anywhere in the tables:
 
 | Family (CMTAT `test/common/…`) | Cases | Covered | Partial | Gap | n/a |
 |---|---:|---:|---:|---:|---:|
-| `ERC20MintModuleCommon` | 34 | 29 | 3 | 2 | 0 |
-| `ERC20BurnModuleCommon` | 30 | 24 | 1 | 5 | 0 |
+| `ERC20MintModuleCommon` | 34 | 31 | 1 | 2 | 0 |
+| `ERC20BurnModuleCommon` | 30 | 26 | 1 | 3 | 0 |
 | `ERC20BaseModuleCommon` | 25 | 18 | 5 | 2 | 0 |
 | `ERC20EnforcementModuleCommon` | 56 | 43 | 10 | 3 | 0 |
 | `ERC20EnforcementERC7551ModuleCommon` | 4 | 4 | 0 | 0 | 0 |
 | `EnforcementModuleCommon` | 21 | 16 | 5 | 0 | 0 |
-| `ValidationModule/ValidationModuleCommon` | 27 | 16 | 8 | 3 | 0 |
+| `ValidationModule/ValidationModuleCommon` | 27 | 19 | 7 | 1 | 0 |
 | `ValidationModule/ValidationModuleCommonCore` | 4 | 4 | 0 | 0 | 0 |
 | `ValidationModule/ValidationModuleSetRuleEngineCommon` | 6 | 4 | 1 | 0 | 1 |
 | `ValidationModule/RuleEngineReentrancyCommon` | 7 | 3 | 3 | 0 | 1 |
-| `ValidationModule/RuleEngineSpenderDispatchCommon` | 11 | 7 | 0 | 2 | 2 |
+| `ValidationModule/RuleEngineSpenderDispatchCommon` | 11 | 9 | 0 | 0 | 2 |
 | `PauseModuleCommon` | 15 | 12 | 2 | 1 | 0 |
 | `AuthorizationModule/AuthorizationModuleCommon` | 5 | 3 | 2 | 0 | 0 |
 | `standard/modules/RuleEngineMockStatefulRule` | 2 | 0 | 0 | 0 | 2 |
-| `AllowlistModuleCommon` | 36 | 17 | 11 | 8 | 0 |
+| `AllowlistModuleCommon` | 36 | 24 | 11 | 1 | 0 |
 | `DocumentModule/DocumentModuleCommon` | 13 | 12 | 0 | 0 | 1 |
 | `ExtraInfoModuleCommon` | 8 | 8 | 0 | 0 | 0 |
 | `DebtModule/DebtModuleCommon` | 5 | 5 | 0 | 0 | 0 |
@@ -49,7 +49,7 @@ These differences are not counted as partial anywhere in the tables:
 | `CMTATIntegrationCommon` | 4 | 3 | 1 | 0 | 0 |
 | `proxy/general` (upgrades) | 10 | 2 | 1 | 1 | 6 |
 | `deployment/*` (constructor behaviour) | 13 | 7 | 4 | 0 | 2 |
-| **Total** | **343** | **242** | **57** | **27** | **17** |
+| **Total** | **343** | **258** | **54** | **14** | **17** |
 
 ### Families not ported
 
@@ -72,11 +72,8 @@ These are the gaps and partials worth closing, most important first. The ids are
 
 1. ~~**P1: plain ERC-20 insufficient balance.**~~ Closed. `transfer`, `transfer_from`, `burn`, `batch_burn` and `batch_transfer` now assert OpenZeppelin's `'ERC20: insufficient balance'`, with atomicity for the batch calls.
 2. ~~**P2: batch paths under pause and deactivation.**~~ Closed. The validation matrix now runs `batch_mint`, `batch_burn` and `burn_and_mint` on every preset, in every pause and freeze state.
-3. **P3: allowlist on batch and `transfer_from` paths.** Missing cases: `batch_mint` or `batch_transfer` to an unlisted recipient, `batch_burn` from a delisted holder, an unlisted minter running `batch_mint`, and `transfer_from` to an unlisted recipient.
-4. **P4: RuleEngine on batch paths.** Missing cases:
-   - a rejecting engine on `batch_mint`, `batch_transfer` and `transfer_from`, with full revert data;
-   - dispatch checks for `batch_burn` (operator as spender) and `burn_self` (holder as spender);
-   - `rejecting_engine_reverts_mint` checks only the first felt of the revert data.
+3. ~~**P3: allowlist on batch and `transfer_from` paths.**~~ Closed. `allowlist` now covers `batch_mint`, `batch_burn`, `batch_transfer` and `transfer_from` with unlisted parties, an unlisted minter or burner, and a zero-value transfer.
+4. ~~**P4: RuleEngine on batch paths.**~~ Closed. A rejecting engine is now tested on `transfer_from`, `batch_mint` and `batch_transfer` with full revert data. Dispatch is checked for `batch_burn` and `burn_self`, and the mint rejection now checks the full data.
 5. **P5: RuleEngine read path.** The recorder ignores read arguments. Missing checks: `can_transfer` and `detect_transfer_restriction` with `from = 0` reach the engine, `*_from` reads pass the spender through, and detect returns 0 when the engine allows.
 6. **P6: active-balance edge cases.**
    - Minting to an account whose frozen amount is above its balance.
@@ -128,11 +125,11 @@ These are the gaps and partials worth closing, most important first. The ids are
 | testCannotBeMintedIfToIsFrozen | covered | `mint::mint_reverts_when_recipient_frozen`, `matrix` | |
 | testFrozenMinterCanStillMint | covered | `mint::mint_by_frozen_minter_succeeds` | |
 | testFrozenMinterCanStillBatchMint | covered | `mint::batch_mint_by_frozen_minter_succeeds` | |
-| testMintPropagatesSpenderToRuleEngine | partial | `rule_engine::mint_passes_minter_as_spender`, `rejecting_engine_reverts_mint` | Revert data checked by first felt only (P4) |
+| testMintPropagatesSpenderToRuleEngine | covered | `rule_engine::mint_passes_minter_as_spender`, `rejecting_engine_reverts_mint` | |
 | testMintWithRuleEngineAuthorizedSpenderCanMint | covered | `rule_engine::mint_passes_minter_as_spender` | |
 | testCanBeMintedBatchByAdmin | covered | `mint::batch_mint_emits_batch_event_not_per_account_mint` | |
 | testCanBeMintBatchedByANewMinter | covered | same | |
-| testBatchMintPropagatesSpenderToRuleEngine | partial | `rule_engine::batch_mint_calls_engine_per_account` | No rejecting-engine case (P4) |
+| testBatchMintPropagatesSpenderToRuleEngine | covered | `rule_engine::batch_mint_calls_engine_per_account`, `rejecting_engine_reverts_batch_mint` | |
 | testBatchMintWithRuleEngineAuthorizedSpenderCanMint | covered | `rule_engine::batch_mint_calls_engine_per_account` | |
 | testCannotBatchMintByNonMinter | covered | `mint::batch_mint_requires_minter_role` | |
 | testCannotBatchMintIfLengthMismatchMissingAddresses | gap | | P10 |
@@ -185,8 +182,8 @@ These are the gaps and partials worth closing, most important first. The ids are
 | testCannotBeBatchBurnIfContractIsDeactivated | covered | `matrix` (deactivated, `BATCH_BURN`) | |
 | testCannotBeBatchBurnIfToIsFrozen | covered | `burn::batch_burn_is_atomic_on_frozen_account` | |
 | testCanBatchBurnWithExactBalances | gap | | P10 |
-| testBatchBurnPropagatesSpenderToRuleEngine | gap | | P4 |
-| testBatchBurnWithRuleEngineAuthorizedSpenderCanBurn | gap | | P4 |
+| testBatchBurnPropagatesSpenderToRuleEngine | covered | `rule_engine::batch_burn_calls_engine_per_account` | |
+| testBatchBurnWithRuleEngineAuthorizedSpenderCanBurn | covered | `rule_engine::batch_burn_calls_engine_per_account` | |
 
 ### ERC20BaseModuleCommon
 
@@ -325,18 +322,18 @@ These are the gaps and partials worth closing, most important first. The ids are
 | Common: testCanReturnMessageWithUnknownRestrictionCode | covered | same | |
 | Common: testCanTransferAllowedByRule | partial | `rule_engine::transfer_calls_erc3643_transferred_without_spender` | Balances not checked |
 | Common: testCannotTransferIfNotAllowedByRule | covered | `rule_engine::rejecting_engine_reverts_transfer` | |
-| Common: testCannotBatchTransferIfNotAllowedByRule | gap | | P4 |
+| Common: testCannotBatchTransferIfNotAllowedByRule | covered | `rule_engine::rejecting_engine_reverts_batch_transfer` | |
 | Common: testCanTransferFrom | partial | `rule_engine::can_transfer_consults_engine` | Spender pass-through not checked (P5) |
 | Common: testCanTransferFromWithoutRuleEngine | covered | `matrix` | |
-| Common: testCannotTransferFromIfNotAllowedByRuleEngine | partial | `rule_engine::can_transfer_consults_engine` | No `transfer_from` revert (P4) |
+| Common: testCannotTransferFromIfNotAllowedByRuleEngine | covered | `rule_engine::rejecting_engine_reverts_transfer_from`, `can_transfer_consults_engine` | |
 | Common: testCanApproveAllowedByRuleEngine | partial | `rule_engine::approve_does_not_call_engine` | No allowance or balance checks |
 | Common: testCanMintWithoutRuleEngine | covered | `erc1404::can_transfer_mint_and_burn_ignore_pause` | |
 | Common: testCanDetectTransferRestrictionValidTransfer (mint) | partial | `rule_engine::can_transfer_consults_engine` | P5 |
 | Common: testCanDetectTransferRestrictionWitMintAmountTooHigh | gap | | P5 |
 | Common: testCanReturnMessageWithMintAmountTooHigh | covered | `rule_engine::detect_falls_back_to_engine_code` | |
 | Common: testCanMintAllowedByRule | partial | `rule_engine::mint_passes_minter_as_spender` | No balance or read checks |
-| Common: testCannotMintIfNotAllowedByRule | partial | `rule_engine::rejecting_engine_reverts_mint` | First felt only (P4) |
-| Common: testCannotBatchMintIfNotAllowedByRule | gap | | P4 |
+| Common: testCannotMintIfNotAllowedByRule | partial | `rule_engine::rejecting_engine_reverts_mint` | Read path for mint not checked (P5) |
+| Common: testCannotBatchMintIfNotAllowedByRule | covered | `rule_engine::rejecting_engine_reverts_batch_mint` | |
 | Common: testCanTransferReturnsFalseForMintToFrozenAddress | covered | `erc1404::can_transfer_mint_and_burn_respect_deactivation_and_freeze` | |
 | Common: testCanTransferReturnsFalseForBurnFromFrozenAddress | covered | same | |
 | Common: testCanSend/CanReceive true/false (4) | covered | `matrix` (read checks) | |
@@ -357,8 +354,8 @@ These are the gaps and partials worth closing, most important first. The ids are
 | Reentrancy: testConsecutiveTransfersAreNotBlockedByTheGuard | covered | `rule_engine::guard_is_released_after_each_call` | |
 | Reentrancy: testBatchOperationsAreNotBlockedByTheGuard | covered | `rule_engine::batch_mint_calls_engine_per_account` | |
 | Dispatch: transfer_from, transfer, mint, batch_mint, burn, burn_from, batch_transfer (7) | covered | `rule_engine::{transfer_from_passes_spender, transfer_calls_erc3643_transferred_without_spender, mint_passes_minter_as_spender, batch_mint_calls_engine_per_account, burn_passes_burner_as_spender, burn_from_passes_caller_as_spender, batch_transfer_passes_minter_as_spender_and_from}` | |
-| Dispatch: testBatchBurnUsesSpenderAwareOverloadWithOperator | gap | | P4 |
-| Dispatch: testSelfBurnUsesSpenderAwareOverloadWithHolder | gap | | P4 |
+| Dispatch: testBatchBurnUsesSpenderAwareOverloadWithOperator | covered | `rule_engine::batch_burn_calls_engine_per_account` | |
+| Dispatch: testSelfBurnUsesSpenderAwareOverloadWithHolder | covered | `rule_engine::burn_self_passes_holder_as_spender` | |
 | Dispatch: crosschain mint and burn (2) | n/a | | Cross-chain is out of scope |
 | StatefulRule (2) | n/a | | Tests a Solidity mock's holder tracker (HolderList) |
 
@@ -408,22 +405,22 @@ These are the gaps and partials worth closing, most important first. The ids are
 | CanTransferMatrix listed/unlisted | covered | same | |
 | CanTransferMatrix unlisted/listed | partial | `allowlist::transfer_from_unlisted_sender_reverts` | Reads not checked |
 | CanTransferMatrix unlisted/unlisted | gap | | P10 |
-| ZeroValueTransferRequiresSenderAndReceiverAllowlisted | gap | | P3 |
+| ZeroValueTransferRequiresSenderAndReceiverAllowlisted | covered | `allowlist::zero_value_transfer_requires_listing` | |
 | CannotApproveWhenOwnerIsNotAllowlisted | covered | `allowlist::approve_requires_listed_owner_and_spender` | |
 | CanRevokeAllowanceWhenSpenderIsNotAllowlisted | partial | same | Revoked with the owner unlisted, not the spender (P7) |
 | CannotApproveWhenSpenderIsNotAllowlisted | covered | same | |
 | CannotMintToNoAllowlistAddress | partial | `allowlist::mint_to_unlisted_reverts` | Read not checked |
-| CannotBatchMintToNoAllowlistAddress | gap | | P3 |
+| CannotBatchMintToNoAllowlistAddress | covered | `allowlist::batch_mint_to_unlisted_reverts` | |
 | MinterNotAllowlistedCanStillMint | covered | `allowlist` (setup) | Implicit |
-| MinterNotAllowlistedCanStillBatchMint | gap | | P3 |
+| MinterNotAllowlistedCanStillBatchMint | covered | `allowlist::unlisted_minter_can_batch_mint` | |
 | CanForceTransfer…WithoutUnfreezeTokens | partial | `allowlist::forced_transfer_ignores_allowlist`, `matrix` | Not combined with frozen tokens |
-| CanBatchBurnIfAllowlistedAddress | gap | | P3 |
-| CannotBatchBurnFromNoAllowlistedAddress | gap | | P3 |
+| CanBatchBurnIfAllowlistedAddress | covered | `allowlist::unlisted_burner_can_batch_burn_listed_account` | |
+| CannotBatchBurnFromNoAllowlistedAddress | covered | `allowlist::batch_burn_from_unlisted_reverts` | |
 | CanBurnFromAllowlistedAddress | partial | `matrix` (allowlist) | Read not checked |
 | CannotBurnFromRemoveFromAllowlistedAddress | partial | `allowlist::burn_from_unlisted_reverts` | Read not checked |
-| CannotBeBatchTransferIfToIsNotAllowlisted | gap | | P3 |
+| CannotBeBatchTransferIfToIsNotAllowlisted | covered | `allowlist::batch_transfer_to_unlisted_reverts` | |
 | CanTransferTokenWithTransferFrom | covered | `matrix` (allowlist), `allowlist::can_transfer_reflects_allowlist` | |
-| CannotTransferTokenWhenToIsNotAllowlistWithTransferFrom | gap | | P3 |
+| CannotTransferTokenWhenToIsNotAllowlistWithTransferFrom | covered | `allowlist::transfer_from_to_unlisted_reverts` | |
 | CannotTransferTokenWhenSpenderIsNotAllowlistWithTransferFrom | covered | `allowlist::transfer_from_requires_listed_spender` | |
 | CannotBatchAllowlistIfLengthMismatchTooManyAddresses | partial | `allowlist::batch_set_address_allowlist_validates_input` | One direction only (P10) |
 | CannotBatchAllowlistIfAccountsIsEmpty | covered | same | |
