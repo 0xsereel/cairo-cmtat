@@ -29,13 +29,13 @@ These differences are not counted as partial anywhere in the tables:
 | `ERC20MintModuleCommon` | 34 | 31 | 1 | 2 | 0 |
 | `ERC20BurnModuleCommon` | 30 | 26 | 1 | 3 | 0 |
 | `ERC20BaseModuleCommon` | 25 | 18 | 5 | 2 | 0 |
-| `ERC20EnforcementModuleCommon` | 56 | 43 | 10 | 3 | 0 |
+| `ERC20EnforcementModuleCommon` | 56 | 52 | 4 | 0 | 0 |
 | `ERC20EnforcementERC7551ModuleCommon` | 4 | 4 | 0 | 0 | 0 |
 | `EnforcementModuleCommon` | 21 | 16 | 5 | 0 | 0 |
-| `ValidationModule/ValidationModuleCommon` | 27 | 19 | 7 | 1 | 0 |
+| `ValidationModule/ValidationModuleCommon` | 27 | 24 | 3 | 0 | 0 |
 | `ValidationModule/ValidationModuleCommonCore` | 4 | 4 | 0 | 0 | 0 |
 | `ValidationModule/ValidationModuleSetRuleEngineCommon` | 6 | 4 | 1 | 0 | 1 |
-| `ValidationModule/RuleEngineReentrancyCommon` | 7 | 3 | 3 | 0 | 1 |
+| `ValidationModule/RuleEngineReentrancyCommon` | 7 | 5 | 1 | 0 | 1 |
 | `ValidationModule/RuleEngineSpenderDispatchCommon` | 11 | 9 | 0 | 0 | 2 |
 | `PauseModuleCommon` | 15 | 12 | 2 | 1 | 0 |
 | `AuthorizationModule/AuthorizationModuleCommon` | 5 | 3 | 2 | 0 | 0 |
@@ -49,7 +49,7 @@ These differences are not counted as partial anywhere in the tables:
 | `CMTATIntegrationCommon` | 4 | 3 | 1 | 0 | 0 |
 | `proxy/general` (upgrades) | 10 | 2 | 1 | 1 | 6 |
 | `deployment/*` (constructor behaviour) | 13 | 7 | 4 | 0 | 2 |
-| **Total** | **343** | **258** | **54** | **14** | **17** |
+| **Total** | **343** | **274** | **42** | **10** | **17** |
 
 ### Families not ported
 
@@ -74,19 +74,14 @@ These are the gaps and partials worth closing, most important first. The ids are
 2. ~~**P2: batch paths under pause and deactivation.**~~ Closed. The validation matrix now runs `batch_mint`, `batch_burn` and `burn_and_mint` on every preset, in every pause and freeze state.
 3. ~~**P3: allowlist on batch and `transfer_from` paths.**~~ Closed. `allowlist` now covers `batch_mint`, `batch_burn`, `batch_transfer` and `transfer_from` with unlisted parties, an unlisted minter or burner, and a zero-value transfer.
 4. ~~**P4: RuleEngine on batch paths.**~~ Closed. A rejecting engine is now tested on `transfer_from`, `batch_mint` and `batch_transfer` with full revert data. Dispatch is checked for `batch_burn` and `burn_self`, and the mint rejection now checks the full data.
-5. **P5: RuleEngine read path.** The recorder ignores read arguments. Missing checks: `can_transfer` and `detect_transfer_restriction` with `from = 0` reach the engine, `*_from` reads pass the spender through, and detect returns 0 when the engine allows.
-6. **P6: active-balance edge cases.**
-   - Minting to an account whose frozen amount is above its balance.
-   - Reads exactly at a non-zero active balance and one above it (the matrix covers active = 0 only).
-   - A zero-value read when the balance is fully frozen.
-   - `set_frozen_tokens` from a non-zero value to 0.
-   - `set_frozen_tokens(ZERO, 0)` must revert with the zero-address error, not the same-value error. This pins the check order.
+5. ~~**P5: RuleEngine read path.**~~ Closed. The recorder's reads now depend on their arguments (a blocked address, a maximum value). Tests show that mint- and burn-shaped reads, the spender and the value all reach the engine, and that detect returns 0 when the engine allows.
+6. ~~**P6: active-balance edge cases.**~~ Closed. Covered: minting above a frozen amount, reads at a non-zero active balance and one above it, zero-value reads when fully frozen, `set_frozen_tokens` to 0 and to the same non-zero value, `set_frozen_tokens(ZERO, 0)` check order, and zero-address checks on the with-data variants.
 7. **P7: allowance edge cases.**
    - `approve(0)` while deactivated.
    - `approve(0)` after the spender is removed from the allowlist (NM-3).
    - Overwriting a non-zero allowance with another non-zero value.
    - `transfer_from` of zero with no allowance, `transfer_from` to self, and spending an allowance exactly.
-8. **P8: reentrancy with partial freeze.** A reentrant engine on `transfer_from`, while tokens are partially frozen, must leave balances and the frozen amount unchanged.
+8. ~~**P8: reentrancy with partial freeze.**~~ Closed by `rule_engine::reentrant_engine_cannot_move_frozen_tokens`.
 9. **P9: upgrade coverage.**
    - Upgrade and migrate a Snapshot or Debt preset, then check `snapshot_engine()` is kept and still notified.
    - Check `information()` and `terms()` after an upgrade.
@@ -245,25 +240,25 @@ These are the gaps and partials worth closing, most important first. The ids are
 | Freeze: CannotNonEnforcerUnfreezeAddress | covered | `erc20_enforcement::unfreeze_partial_tokens_requires_erc20_enforcer` | |
 | Freeze: CannotFreezeZeroAddress | covered | `erc20_enforcement::freeze_partial_tokens_rejects_zero_address` | |
 | Freeze: CannotUnfreezeZeroAddress | covered | `erc20_enforcement::unfreeze_partial_tokens_rejects_zero_address` | |
-| Freeze: CannotFreezeZeroAddressWithReason | gap | | Same internal guard as the case above |
+| Freeze: CannotFreezeZeroAddressWithReason | covered | `erc20_enforcement::with_data_freeze_and_unfreeze_reject_zero_address` | |
 | Freeze: CannotFreezeMoreThanAvailableBalance | covered | `erc20_enforcement::freeze_partial_tokens_rejects_exceeding_balance` | |
-| Freeze: CannotUnfreezeZeroAddressWithReason | gap | | Same internal guard |
+| Freeze: CannotUnfreezeZeroAddressWithReason | covered | `erc20_enforcement::with_data_freeze_and_unfreeze_reject_zero_address` | |
 | Freeze: CannotUnfreezeMoreThanFrozenBalance | covered | `erc20_enforcement::unfreeze_partial_tokens_rejects_exceeding_frozen`, `fuzz` | |
 | Freeze: CannotTransferMoreThanActiveBalance | covered | `erc20_base::transfer_above_active_balance_reverts`, `fuzz`, `erc1404::messages_match_cmtat` | |
 | Freeze: CanSetFrozenTokensGreaterThanBalance | covered | `erc20_enforcement::set_frozen_tokens_may_exceed_balance`, `matrix` | |
-| Freeze: CanTransferZeroWhenFrozenTokensCoverBalance | partial | `erc1404::zero_value_with_fully_frozen_balance_is_allowed` | `can_transfer(…, 0)` and `detect_transfer_restriction_from(…, 0)` not checked (P6) |
-| Freeze: CanSetFrozenTokensToZeroFromNonZero | partial | `erc20_enforcement::set_frozen_tokens_decrease_emits_difference` | Non-zero to 0 not tested (P6) |
+| Freeze: CanTransferZeroWhenFrozenTokensCoverBalance | covered | `erc1404::zero_value_with_fully_frozen_balance_is_allowed` | |
+| Freeze: CanSetFrozenTokensToZeroFromNonZero | covered | `erc20_enforcement::set_frozen_tokens_to_zero_unfreezes_everything` | |
 | Freeze: CanForcedTransferWhenFrozenTokensGreaterThanBalance | covered | `matrix` (`FORCED_TRANSFER`, partially frozen) | |
-| Freeze: CanMintToAccountAfterFrozenTokensGreaterThanBalance | gap | | P6 |
+| Freeze: CanMintToAccountAfterFrozenTokensGreaterThanBalance | covered | `erc1404::mint_to_account_frozen_above_balance` | |
 | Freeze: CannotSetFrozenTokensOnZeroAddress | covered | `erc20_enforcement::set_frozen_tokens_rejects_zero_address` | |
 | Freeze: SetFrozenTokensOnZeroAddressCannotBrickMint | covered | `erc20_enforcement::set_frozen_tokens_rejects_zero_address` | Implied by the revert |
 | Freeze: SetFrozenTokensOnZeroAddressCannotBrickBatchMint | covered | same | Implied by the revert |
-| Freeze: CannotSetFrozenTokensOnZeroAddressEvenToZero | partial | `erc20_enforcement::set_frozen_tokens_rejects_zero_address` | Value 0 not tested; this pins the check order (P6) |
+| Freeze: CannotSetFrozenTokensOnZeroAddressEvenToZero | covered | `erc20_enforcement::set_frozen_tokens_rejects_zero_address_even_to_zero` | |
 | Freeze: SetFrozenTokensStillWorksOnRegularAddress | covered | `erc20_enforcement::set_frozen_tokens_increase_emits_difference`, `fuzz` | |
-| Freeze: CanTransferTokenIfActiveBalanceIsEnough | partial | `erc20_base::transfer_up_to_active_balance_succeeds`, `fuzz` | Reads at a non-zero active balance not checked (P6) |
+| Freeze: CanTransferTokenIfActiveBalanceIsEnough | covered | `erc20_base::transfer_up_to_active_balance_succeeds`, `erc1404::reads_at_nonzero_active_balance_boundary` | |
 | Freeze: CannotTransferFromTokenIfActiveBalanceIsNotEnough | covered | `erc20_base::transfer_from_above_active_balance_reverts`, `matrix` | |
 | Set: AdminCanFreezeAddress | covered | `erc20_enforcement::set_frozen_tokens_increase_emits_difference` | |
-| Set: AdminCanFreezeAddressWithTokenFrozen | partial | `erc20_enforcement::set_frozen_tokens_rejects_same_value` | Same-value check tested at 0 only (P10) |
+| Set: AdminCanFreezeAddressWithTokenFrozen | covered | `erc20_enforcement::set_frozen_tokens_rejects_same_nonzero_value` | |
 | Set: …WithTokenFrozenDifferentLess | covered | `erc20_enforcement::set_frozen_tokens_decrease_emits_difference` | |
 | Set: …WithTokenFrozenDifferentMore | covered | `erc20_enforcement::set_frozen_tokens_increase_emits_difference` | |
 | Set: EnforcerRoleCanFreezeAddress | covered | same | |
@@ -271,7 +266,7 @@ These are the gaps and partials worth closing, most important first. The ids are
 | Set: EnforcerRoleCanUnfreezeAddress | covered | same | |
 | Set: CannotNonEnforcersetFrozenTokens | covered | `erc20_enforcement::set_frozen_tokens_requires_erc20_enforcer` | |
 | Set: CannotTransferMoreThanActiveBalance | covered | `matrix` (partially frozen) | |
-| Set: CanTransferTokenIfActiveBalanceIsEnough | partial | `fuzz`, `erc20_base` (indirect) | Same as P6 |
+| Set: CanTransferTokenIfActiveBalanceIsEnough | covered | `erc1404::reads_at_nonzero_active_balance_boundary` | Frozen amount set with `set_frozen_tokens` |
 | Set: CannotTransferFromTokenIfActiveBalanceIsNotEnough | covered | `matrix` | |
 
 ### ERC20EnforcementERC7551ModuleCommon
@@ -315,7 +310,7 @@ These are the gaps and partials worth closing, most important first. The ids are
 |---|---|---|---|
 | Common: testCanReturnTheRightAddressIfSet | covered | `standard::constructor_sets_rule_engine` | |
 | Common: testCanTransferWithoutRuleEngine | covered | `rule_engine::set_rule_engine_to_zero_removes_engine`, `matrix` | |
-| Common: testCanDetectTransferRestrictionValidTransfer | partial | `rule_engine::can_transfer_consults_engine` | Detect = 0 with an allowing engine not checked (P5) |
+| Common: testCanDetectTransferRestrictionValidTransfer | covered | `rule_engine::reads_pass_value_to_engine` | |
 | Common: testCanReturnMessageValidTransfer | covered | `erc1404::messages_match_cmtat` | |
 | Common: testCanDetectTransferRestrictionWithAmountTooHigh | covered | `rule_engine::detect_falls_back_to_engine_code` | Configured code |
 | Common: testCanReturnMessageWithAmountTooHigh | covered | same | |
@@ -323,16 +318,16 @@ These are the gaps and partials worth closing, most important first. The ids are
 | Common: testCanTransferAllowedByRule | partial | `rule_engine::transfer_calls_erc3643_transferred_without_spender` | Balances not checked |
 | Common: testCannotTransferIfNotAllowedByRule | covered | `rule_engine::rejecting_engine_reverts_transfer` | |
 | Common: testCannotBatchTransferIfNotAllowedByRule | covered | `rule_engine::rejecting_engine_reverts_batch_transfer` | |
-| Common: testCanTransferFrom | partial | `rule_engine::can_transfer_consults_engine` | Spender pass-through not checked (P5) |
+| Common: testCanTransferFrom | covered | `rule_engine::from_reads_pass_spender_to_engine` | |
 | Common: testCanTransferFromWithoutRuleEngine | covered | `matrix` | |
 | Common: testCannotTransferFromIfNotAllowedByRuleEngine | covered | `rule_engine::rejecting_engine_reverts_transfer_from`, `can_transfer_consults_engine` | |
 | Common: testCanApproveAllowedByRuleEngine | partial | `rule_engine::approve_does_not_call_engine` | No allowance or balance checks |
 | Common: testCanMintWithoutRuleEngine | covered | `erc1404::can_transfer_mint_and_burn_ignore_pause` | |
-| Common: testCanDetectTransferRestrictionValidTransfer (mint) | partial | `rule_engine::can_transfer_consults_engine` | P5 |
-| Common: testCanDetectTransferRestrictionWitMintAmountTooHigh | gap | | P5 |
+| Common: testCanDetectTransferRestrictionValidTransfer (mint) | covered | `rule_engine::mint_and_burn_shaped_reads_reach_engine` | |
+| Common: testCanDetectTransferRestrictionWitMintAmountTooHigh | covered | `rule_engine::mint_and_burn_shaped_reads_reach_engine`, `reads_pass_value_to_engine` | |
 | Common: testCanReturnMessageWithMintAmountTooHigh | covered | `rule_engine::detect_falls_back_to_engine_code` | |
 | Common: testCanMintAllowedByRule | partial | `rule_engine::mint_passes_minter_as_spender` | No balance or read checks |
-| Common: testCannotMintIfNotAllowedByRule | partial | `rule_engine::rejecting_engine_reverts_mint` | Read path for mint not checked (P5) |
+| Common: testCannotMintIfNotAllowedByRule | covered | `rule_engine::rejecting_engine_reverts_mint`, `mint_and_burn_shaped_reads_reach_engine` | |
 | Common: testCannotBatchMintIfNotAllowedByRule | covered | `rule_engine::rejecting_engine_reverts_batch_mint` | |
 | Common: testCanTransferReturnsFalseForMintToFrozenAddress | covered | `erc1404::can_transfer_mint_and_burn_respect_deactivation_and_freeze` | |
 | Common: testCanTransferReturnsFalseForBurnFromFrozenAddress | covered | same | |
@@ -346,9 +341,9 @@ These are the gaps and partials worth closing, most important first. The ids are
 | SetRuleEngine: testCannotBeSetByNonAdmin | covered | `rule_engine::set_rule_engine_requires_default_admin` | |
 | SetRuleEngine: testCanReturnMessageWithNoRuleEngineAndUnknownRestrictionCode | covered | `erc1404::messages_match_cmtat` | |
 | SetRuleEngine: testCanDetectTransferRestrictionValidTransferWithoutRuleEngine | covered | `matrix` | |
-| Reentrancy: testFrozenTokensCannotBeDrainedByReentrantRuleEngine | partial | `rule_engine::reentrant_engine_is_rejected` | Not combined with partial freeze (P8) |
+| Reentrancy: testFrozenTokensCannotBeDrainedByReentrantRuleEngine | covered | `rule_engine::reentrant_engine_cannot_move_frozen_tokens` | Whole call reverts (no `try`/`catch`) |
 | Reentrancy: testReentrantRuleEngineCallbackIsRejected | n/a | | Engine catching a failed reentry needs `try`/`catch` |
-| Reentrancy: testReentrantCallRevertsWithDedicatedError | partial | `rule_engine::reentrant_engine_is_rejected` | Via `transfer`, not `transfer_from` (P8) |
+| Reentrancy: testReentrantCallRevertsWithDedicatedError | covered | `rule_engine::reentrant_engine_is_rejected`, `reentrant_engine_cannot_move_frozen_tokens` | |
 | Reentrancy: testReentrancyIsAlsoBlockedOnTransfer | covered | `rule_engine::reentrant_engine_is_rejected` | |
 | Reentrancy: testNonReentrantRuleEngineTransferStillWorks | partial | `rule_engine::transfer_from_passes_spender` | No freeze or balance checks |
 | Reentrancy: testConsecutiveTransfersAreNotBlockedByTheGuard | covered | `rule_engine::guard_is_released_after_each_call` | |

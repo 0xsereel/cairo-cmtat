@@ -7,19 +7,22 @@ use cairo_cmtat::interfaces::enforcement::{
     IERC3643EnforcementDispatcher, IERC3643EnforcementDispatcherTrait,
 };
 use cairo_cmtat::interfaces::erc1404::{
-    IERC1404Dispatcher, IERC1404DispatcherTrait, TRANSFER_OK, TRANSFER_REJECTED_DEACTIVATED,
+    IERC1404Dispatcher, IERC1404DispatcherTrait, IERC1404ExtendDispatcher,
+    IERC1404ExtendDispatcherTrait, TRANSFER_OK, TRANSFER_REJECTED_DEACTIVATED,
     TRANSFER_REJECTED_FROM_INSUFFICIENT_ACTIVE_BALANCE, TRANSFER_REJECTED_PAUSED,
 };
 use cairo_cmtat::interfaces::erc20_enforcement::{
     IERC3643ERC20EnforcementDispatcher, IERC3643ERC20EnforcementDispatcherTrait,
     IERC7943FungibleEnforcementDispatcher, IERC7943FungibleEnforcementDispatcherTrait,
 };
+use cairo_cmtat::interfaces::mint::{IERC3643MintDispatcher, IERC3643MintDispatcherTrait};
 use cairo_cmtat::interfaces::pause::{
     IERC3643PauseDispatcher, IERC3643PauseDispatcherTrait, IERC8343Dispatcher,
     IERC8343DispatcherTrait,
 };
 use cairo_cmtat::interfaces::validation::{
     IERC3643ComplianceReadDispatcher, IERC3643ComplianceReadDispatcherTrait,
+    IERC7551ComplianceDispatcher, IERC7551ComplianceDispatcherTrait,
 };
 use cairo_cmtat::roles::{ENFORCER_ROLE, ERC20ENFORCER_ROLE, PAUSER_ROLE};
 use openzeppelin::interfaces::accesscontrol::{
@@ -32,7 +35,8 @@ use openzeppelin::utils::serde::SerializedAppend;
 use snforge_std::start_cheat_caller_address;
 use starknet::ContractAddress;
 use crate::utils::{
-    ADMIN, ENFORCER, ERC20ENFORCER, HOLDER, PAUSER, RECIPIENT, SUPPLY, ZERO, assert_reverted_with,
+    ADMIN, ENFORCER, ERC20ENFORCER, HOLDER, PAUSER, RECIPIENT, SPENDER, SUPPLY, ZERO,
+    assert_reverted_with,
 };
 
 fn setup() -> ContractAddress {
@@ -139,8 +143,63 @@ fn zero_value_with_fully_frozen_balance_is_allowed() {
     IERC7943FungibleEnforcementDispatcher { contract_address: token }
         .set_frozen_tokens(HOLDER, SUPPLY + 1);
     assert_eq!(erc1404(token).detect_transfer_restriction(HOLDER, RECIPIENT, 0), TRANSFER_OK);
+    assert_eq!(
+        IERC1404ExtendDispatcher { contract_address: token }
+            .detect_transfer_restriction_from(SPENDER, HOLDER, RECIPIENT, 0),
+        TRANSFER_OK,
+    );
+    assert!(
+        IERC3643ComplianceReadDispatcher { contract_address: token }
+            .can_transfer(HOLDER, RECIPIENT, 0),
+    );
     start_cheat_caller_address(token, HOLDER);
     assert!(IERC20Dispatcher { contract_address: token }.transfer(RECIPIENT, 0));
+}
+
+/// With part of the balance frozen, every read allows exactly the active balance
+/// and reports code 6 one above it.
+#[test]
+fn reads_at_nonzero_active_balance_boundary() {
+    let token = setup();
+    start_cheat_caller_address(token, ERC20ENFORCER);
+    IERC7943FungibleEnforcementDispatcher { contract_address: token }
+        .set_frozen_tokens(HOLDER, 300);
+    let active = SUPPLY - 300;
+    let read = IERC3643ComplianceReadDispatcher { contract_address: token };
+    let read_from = IERC7551ComplianceDispatcher { contract_address: token };
+    let extend = IERC1404ExtendDispatcher { contract_address: token };
+    assert!(read.can_transfer(HOLDER, RECIPIENT, active));
+    assert!(!read.can_transfer(HOLDER, RECIPIENT, active + 1));
+    assert!(read_from.can_transfer_from(SPENDER, HOLDER, RECIPIENT, active));
+    assert!(!read_from.can_transfer_from(SPENDER, HOLDER, RECIPIENT, active + 1));
+    assert_eq!(erc1404(token).detect_transfer_restriction(HOLDER, RECIPIENT, active), TRANSFER_OK);
+    assert_eq!(
+        erc1404(token).detect_transfer_restriction(HOLDER, RECIPIENT, active + 1),
+        TRANSFER_REJECTED_FROM_INSUFFICIENT_ACTIVE_BALANCE,
+    );
+    assert_eq!(
+        extend.detect_transfer_restriction_from(SPENDER, HOLDER, RECIPIENT, active), TRANSFER_OK,
+    );
+    assert_eq!(
+        extend.detect_transfer_restriction_from(SPENDER, HOLDER, RECIPIENT, active + 1),
+        TRANSFER_REJECTED_FROM_INSUFFICIENT_ACTIVE_BALANCE,
+    );
+}
+
+/// Minting is not limited by the recipient's frozen amount, even above its
+/// balance; the new tokens beyond the frozen amount are free to move.
+#[test]
+fn mint_to_account_frozen_above_balance() {
+    let token = setup();
+    start_cheat_caller_address(token, ERC20ENFORCER);
+    IERC7943FungibleEnforcementDispatcher { contract_address: token }
+        .set_frozen_tokens(RECIPIENT, 1);
+    start_cheat_caller_address(token, ADMIN);
+    IERC3643MintDispatcher { contract_address: token }.mint(RECIPIENT, 2);
+    assert_eq!(IERC20Dispatcher { contract_address: token }.balance_of(RECIPIENT), 2);
+    let read = IERC3643ComplianceReadDispatcher { contract_address: token };
+    assert!(read.can_transfer(RECIPIENT, HOLDER, 1));
+    assert!(!read.can_transfer(RECIPIENT, HOLDER, 2));
 }
 
 /// Paused zero-value transfer: both paths reject it (code 2, pause revert).

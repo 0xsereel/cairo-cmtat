@@ -8,6 +8,7 @@ use cairo_cmtat::interfaces::erc20_enforcement::{
     IERC3643ERC20EnforcementDispatcher, IERC3643ERC20EnforcementDispatcherTrait,
     IERC3643ERC20EnforcementSafeDispatcher, IERC3643ERC20EnforcementSafeDispatcherTrait,
     IERC7551ERC20EnforcementDispatcher, IERC7551ERC20EnforcementDispatcherTrait,
+    IERC7551ERC20EnforcementSafeDispatcher, IERC7551ERC20EnforcementSafeDispatcherTrait,
     IERC7943FungibleEnforcementDispatcher, IERC7943FungibleEnforcementDispatcherTrait,
     IERC7943FungibleEnforcementSafeDispatcher, IERC7943FungibleEnforcementSafeDispatcherTrait,
 };
@@ -285,6 +286,54 @@ fn set_frozen_tokens_rejects_zero_address() {
             .set_frozen_tokens(ZERO, 1),
         array![errors::ERC20ENF_ZERO_ADDRESS_NOT_ALLOWED].span(),
     );
+}
+
+/// The zero-address check runs before the same-value check (the zero address's
+/// frozen amount is already 0).
+#[test]
+#[feature("safe_dispatcher")]
+fn set_frozen_tokens_rejects_zero_address_even_to_zero() {
+    let token = setup();
+    assert_reverted_with(
+        IERC7943FungibleEnforcementSafeDispatcher { contract_address: token }
+            .set_frozen_tokens(ZERO, 0),
+        array![errors::ERC20ENF_ZERO_ADDRESS_NOT_ALLOWED].span(),
+    );
+}
+
+#[test]
+#[feature("safe_dispatcher")]
+fn set_frozen_tokens_rejects_same_nonzero_value() {
+    let token = setup();
+    erc3643(token).freeze_partial_tokens(HOLDER, 20);
+    assert_reverted_with(
+        IERC7943FungibleEnforcementSafeDispatcher { contract_address: token }
+            .set_frozen_tokens(HOLDER, 20),
+        array![errors::ERC20ENF_VALUE_EQ_CURRENT_FROZEN].span(),
+    );
+}
+
+#[test]
+fn set_frozen_tokens_to_zero_unfreezes_everything() {
+    let token = setup();
+    erc3643(token).freeze_partial_tokens(HOLDER, 400);
+    let mut spy = spy_events();
+    erc7943(token).set_frozen_tokens(HOLDER, 0);
+    assert_eq!(erc7943(token).get_frozen_tokens(HOLDER), 0);
+    assert_eq!(erc7551(token).get_active_balance_of(HOLDER), SUPPLY);
+    spy.assert_emitted_single(token, frozen_event(HOLDER, 0));
+    spy.assert_only_event(token, tokens_unfrozen_event(HOLDER, 400, array![].span()));
+}
+
+#[test]
+#[feature("safe_dispatcher")]
+fn with_data_freeze_and_unfreeze_reject_zero_address() {
+    let token = setup();
+    let erc7551 = IERC7551ERC20EnforcementSafeDispatcher { contract_address: token };
+    let data = array!['order'].span();
+    let expected = array![errors::ERC20ENF_ZERO_ADDRESS_NOT_ALLOWED].span();
+    assert_reverted_with(erc7551.freeze_partial_tokens_with_data(ZERO, 1, data), expected);
+    assert_reverted_with(erc7551.unfreeze_partial_tokens_with_data(ZERO, 1, data), expected);
 }
 
 #[test]

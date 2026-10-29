@@ -10,7 +10,7 @@ use cairo_cmtat::interfaces::burn::{
 };
 use cairo_cmtat::interfaces::erc1404::{
     IERC1404Dispatcher, IERC1404DispatcherTrait, IERC1404ExtendDispatcher,
-    IERC1404ExtendDispatcherTrait, TRANSFER_REJECTED_PAUSED,
+    IERC1404ExtendDispatcherTrait, TRANSFER_OK, TRANSFER_REJECTED_PAUSED,
 };
 use cairo_cmtat::interfaces::erc20_enforcement::{
     IERC7943FungibleEnforcementDispatcher, IERC7943FungibleEnforcementDispatcherTrait,
@@ -31,7 +31,8 @@ use cairo_cmtat::interfaces::validation::{
     IERC7551ComplianceDispatcher, IERC7551ComplianceDispatcherTrait,
 };
 use cairo_cmtat::mocks::rule_engine_recorder::{
-    IRuleEngineRecorderDispatcher, IRuleEngineRecorderDispatcherTrait, RecordedCall,
+    BLOCKED_CODE, IRuleEngineRecorderDispatcher, IRuleEngineRecorderDispatcherTrait, RecordedCall,
+    VALUE_CODE,
 };
 use cairo_cmtat::roles::{BURNER_FROM_ROLE, BURNER_ROLE, BURNER_SELF_ROLE, MINTER_ROLE, PAUSER_ROLE};
 use openzeppelin::access::accesscontrol::AccessControlComponent;
@@ -371,6 +372,31 @@ fn reentrant_engine_is_rejected() {
     assert_eq!(erc20(s.token).balance_of(RECIPIENT), 0);
 }
 
+/// A reentrant engine cannot drain frozen tokens through `transfer_from`: the
+/// whole call reverts and balances, the frozen amount and the allowance stay.
+#[test]
+#[feature("safe_dispatcher")]
+fn reentrant_engine_cannot_move_frozen_tokens() {
+    let s = setup();
+    IERC7943FungibleEnforcementDispatcher { contract_address: s.token }
+        .set_frozen_tokens(HOLDER, SUPPLY - 100);
+    start_cheat_caller_address(s.token, HOLDER);
+    erc20(s.token).approve(SPENDER, 100);
+    recorder(s).set_reenter(s.token);
+    start_cheat_caller_address(s.token, SPENDER);
+    let result = IERC20SafeDispatcher { contract_address: s.token }
+        .transfer_from(HOLDER, RECIPIENT, 100);
+    assert_eq!(*result.unwrap_err().at(0), ReentrancyGuardComponent::Errors::REENTRANT_CALL);
+    assert_eq!(erc20(s.token).balance_of(HOLDER), SUPPLY);
+    assert_eq!(erc20(s.token).balance_of(RECIPIENT), 0);
+    assert_eq!(erc20(s.token).allowance(HOLDER, SPENDER), 100);
+    assert_eq!(
+        IERC7943FungibleEnforcementDispatcher { contract_address: s.token }
+            .get_frozen_tokens(HOLDER),
+        SUPPLY - 100,
+    );
+}
+
 #[test]
 fn guard_is_released_after_each_call() {
     let s = setup();
@@ -422,4 +448,50 @@ fn module_codes_take_precedence_over_engine() {
             .detect_transfer_restriction(HOLDER, RECIPIENT, 1),
         TRANSFER_REJECTED_PAUSED,
     );
+}
+
+/// The value reaches the engine on every read; an allowing engine leaves code 0.
+#[test]
+fn reads_pass_value_to_engine() {
+    let s = setup();
+    recorder(s).set_max_value(5);
+    let read = IERC3643ComplianceReadDispatcher { contract_address: s.token };
+    let erc1404 = IERC1404Dispatcher { contract_address: s.token };
+    assert!(read.can_transfer(HOLDER, RECIPIENT, 5));
+    assert!(!read.can_transfer(HOLDER, RECIPIENT, 6));
+    assert_eq!(erc1404.detect_transfer_restriction(HOLDER, RECIPIENT, 5), TRANSFER_OK);
+    assert_eq!(erc1404.detect_transfer_restriction(HOLDER, RECIPIENT, 6), VALUE_CODE);
+}
+
+/// `*_from` reads pass the spender to the engine; plain reads do not.
+#[test]
+fn from_reads_pass_spender_to_engine() {
+    let s = setup();
+    recorder(s).set_blocked(SPENDER);
+    let read_from = IERC7551ComplianceDispatcher { contract_address: s.token };
+    assert!(
+        IERC3643ComplianceReadDispatcher { contract_address: s.token }
+            .can_transfer(HOLDER, RECIPIENT, 1),
+    );
+    assert!(!read_from.can_transfer_from(SPENDER, HOLDER, RECIPIENT, 1));
+    assert!(read_from.can_transfer_from(OTHER, HOLDER, RECIPIENT, 1));
+    let extend = IERC1404ExtendDispatcher { contract_address: s.token };
+    assert_eq!(
+        extend.detect_transfer_restriction_from(SPENDER, HOLDER, RECIPIENT, 1), BLOCKED_CODE,
+    );
+    assert_eq!(extend.detect_transfer_restriction_from(OTHER, HOLDER, RECIPIENT, 1), TRANSFER_OK);
+}
+
+/// Mint-shaped (from = 0) and burn-shaped (to = 0) reads reach the engine too.
+#[test]
+fn mint_and_burn_shaped_reads_reach_engine() {
+    let s = setup();
+    recorder(s).set_blocked(ZERO);
+    let read = IERC3643ComplianceReadDispatcher { contract_address: s.token };
+    let erc1404 = IERC1404Dispatcher { contract_address: s.token };
+    assert!(!read.can_transfer(ZERO, RECIPIENT, 1));
+    assert!(!read.can_transfer(HOLDER, ZERO, 1));
+    assert!(read.can_transfer(HOLDER, RECIPIENT, 1));
+    assert_eq!(erc1404.detect_transfer_restriction(ZERO, RECIPIENT, 1), BLOCKED_CODE);
+    assert_eq!(erc1404.detect_transfer_restriction(HOLDER, ZERO, 1), BLOCKED_CODE);
 }

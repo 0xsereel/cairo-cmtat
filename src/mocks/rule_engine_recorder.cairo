@@ -1,9 +1,16 @@
 // SPDX-License-Identifier: MPL-2.0
 // Test RuleEngine that records every `transferred` call. It can be configured to
 // reject transfers, answer `can_transfer` with false, report an ERC-1404 code,
-// or reenter the token during `transferred`.
+// or reenter the token during `transferred`. Its read functions can also depend
+// on their arguments (a blocked address, a maximum value), so tests can check
+// what the token passes to the engine on the read path.
 
 use starknet::ContractAddress;
+
+/// ERC-1404 code the reads return for a blocked spender, from or to.
+pub const BLOCKED_CODE: u8 = 10;
+/// ERC-1404 code the reads return for a value above the maximum.
+pub const VALUE_CODE: u8 = 11;
 
 #[derive(Copy, Drop, Debug, PartialEq, Serde, starknet::Store)]
 pub struct RecordedCall {
@@ -23,6 +30,11 @@ pub trait IRuleEngineRecorder<TState> {
     /// When set, the next `transferred` calls `transfer(to, value)` on `token` from the
     /// engine, once.
     fn set_reenter(ref self: TState, token: ContractAddress);
+    /// Reads deny (and report BLOCKED_CODE) when `account` is the spender, from
+    /// or to. `account` may be zero, to target mint- or burn-shaped reads.
+    fn set_blocked(ref self: TState, account: ContractAddress);
+    /// Reads deny (and report VALUE_CODE) when the value exceeds `max_value`.
+    fn set_max_value(ref self: TState, max_value: u256);
     fn call_count(self: @TState) -> u64;
     fn call_at(self: @TState, index: u64) -> RecordedCall;
 }
@@ -46,6 +58,10 @@ pub mod RuleEngineRecorder {
         deny_can_transfer: bool,
         code: u8,
         reenter_token: ContractAddress,
+        blocking: bool,
+        blocked: ContractAddress,
+        limiting: bool,
+        max_value: u256,
     }
 
     #[constructor]
@@ -67,6 +83,16 @@ pub mod RuleEngineRecorder {
 
         fn set_reenter(ref self: ContractState, token: ContractAddress) {
             self.reenter_token.write(token);
+        }
+
+        fn set_blocked(ref self: ContractState, account: ContractAddress) {
+            self.blocking.write(true);
+            self.blocked.write(account);
+        }
+
+        fn set_max_value(ref self: ContractState, max_value: u256) {
+            self.limiting.write(true);
+            self.max_value.write(max_value);
         }
 
         fn call_count(self: @ContractState) -> u64 {
@@ -99,7 +125,7 @@ pub mod RuleEngineRecorder {
         fn can_transfer(
             self: @ContractState, from: ContractAddress, to: ContractAddress, value: u256,
         ) -> bool {
-            !self.deny_can_transfer.read()
+            !self.deny_can_transfer.read() && self.read_code(Zero::zero(), from, to, value) == 0
         }
 
         fn can_transfer_from(
@@ -109,7 +135,7 @@ pub mod RuleEngineRecorder {
             to: ContractAddress,
             value: u256,
         ) -> bool {
-            !self.deny_can_transfer.read()
+            !self.deny_can_transfer.read() && self.read_code(spender, from, to, value) == 0
         }
     }
 
@@ -118,7 +144,12 @@ pub mod RuleEngineRecorder {
         fn detect_transfer_restriction(
             self: @ContractState, from: ContractAddress, to: ContractAddress, value: u256,
         ) -> u8 {
-            self.code.read()
+            let code = self.read_code(Zero::zero(), from, to, value);
+            if code != 0 {
+                code
+            } else {
+                self.code.read()
+            }
         }
 
         fn detect_transfer_restriction_from(
@@ -128,7 +159,12 @@ pub mod RuleEngineRecorder {
             to: ContractAddress,
             value: u256,
         ) -> u8 {
-            self.code.read()
+            let code = self.read_code(spender, from, to, value);
+            if code != 0 {
+                code
+            } else {
+                self.code.read()
+            }
         }
 
         fn message_for_transfer_restriction(
@@ -140,6 +176,28 @@ pub mod RuleEngineRecorder {
 
     #[generate_trait]
     impl InternalImpl of InternalTrait {
+        /// BLOCKED_CODE or VALUE_CODE when the arguments trip a configured rule,
+        /// else 0. A zero spender (non-`_from` reads) never matches a block.
+        fn read_code(
+            self: @ContractState,
+            spender: ContractAddress,
+            from: ContractAddress,
+            to: ContractAddress,
+            value: u256,
+        ) -> u8 {
+            if self.blocking.read() {
+                let blocked = self.blocked.read();
+                let spender_blocked = spender.is_non_zero() && spender == blocked;
+                if spender_blocked || from == blocked || to == blocked {
+                    return super::BLOCKED_CODE;
+                }
+            }
+            if self.limiting.read() && value > self.max_value.read() {
+                return super::VALUE_CODE;
+            }
+            0
+        }
+
         fn record(
             ref self: ContractState,
             with_spender: bool,
