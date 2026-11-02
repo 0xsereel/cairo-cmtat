@@ -148,10 +148,29 @@ fn set_address_allowlist_with_data_emits_data() {
 fn batch_set_address_allowlist_sets_each() {
     let token = setup();
     start_cheat_caller_address(token, LISTER);
+    let mut spy = spy_events();
     allowlist(token)
         .batch_set_address_allowlist(array![HOLDER, RECIPIENT].span(), array![false, true].span());
     assert!(!allowlist(token).is_allowlisted(HOLDER));
     assert!(allowlist(token).is_allowlisted(RECIPIENT));
+    spy
+        .assert_emitted_single(
+            token,
+            AllowlistComponent::Event::AddressAddedToAllowlist(
+                AllowlistComponent::AddressAddedToAllowlist {
+                    account: HOLDER, status: false, enforcer: LISTER, data: array![].span(),
+                },
+            ),
+        );
+    spy
+        .assert_only_event(
+            token,
+            AllowlistComponent::Event::AddressAddedToAllowlist(
+                AllowlistComponent::AddressAddedToAllowlist {
+                    account: RECIPIENT, status: true, enforcer: LISTER, data: array![].span(),
+                },
+            ),
+        );
 }
 
 #[test]
@@ -192,6 +211,28 @@ fn enable_allowlist_emits() {
                 AllowlistComponent::AllowlistEnableStatus { operator: LISTER, status: false },
             ),
         );
+}
+
+/// Re-enabling restores enforcement for addresses that are still unlisted.
+#[test]
+#[feature("safe_dispatcher")]
+fn re_enable_allowlist_restores_enforcement() {
+    let token = setup();
+    start_cheat_caller_address(token, LISTER);
+    allowlist(token).enable_allowlist(false);
+    assert!(as_holder(token).transfer(RECIPIENT, 1).unwrap());
+    start_cheat_caller_address(token, LISTER);
+    let mut spy = spy_events();
+    allowlist(token).enable_allowlist(true);
+    assert!(allowlist(token).is_allowlist_enabled());
+    spy
+        .assert_only_event(
+            token,
+            AllowlistComponent::Event::AllowlistEnableStatus(
+                AllowlistComponent::AllowlistEnableStatus { operator: LISTER, status: true },
+            ),
+        );
+    assert_reverted_with(as_holder(token).transfer(RECIPIENT, 1), cannot_receive(RECIPIENT));
 }
 
 #[test]

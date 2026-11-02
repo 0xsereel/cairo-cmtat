@@ -185,6 +185,12 @@ fn unfreeze_partial_tokens_reduces_and_emits() {
     assert_eq!(erc7943(token).get_frozen_tokens(HOLDER), FROZEN - 200);
     spy.assert_emitted_single(token, frozen_event(HOLDER, FROZEN - 200));
     spy.assert_only_event(token, tokens_unfrozen_event(HOLDER, 200, array![].span()));
+
+    // A second unfreeze releases the rest.
+    erc3643(token).unfreeze_partial_tokens(HOLDER, FROZEN - 200);
+    assert_eq!(erc7943(token).get_frozen_tokens(HOLDER), 0);
+    spy.assert_emitted_single(token, frozen_event(HOLDER, 0));
+    spy.assert_only_event(token, tokens_unfrozen_event(HOLDER, FROZEN - 200, array![].span()));
 }
 
 #[test]
@@ -231,6 +237,8 @@ fn unfreeze_partial_tokens_with_data_emits_data() {
     erc7551(token).unfreeze_partial_tokens_with_data(HOLDER, FROZEN, data);
     spy.assert_emitted_single(token, frozen_event(HOLDER, 0));
     spy.assert_only_event(token, tokens_unfrozen_event(HOLDER, FROZEN, data));
+    // After a full unfreeze the whole balance is active again.
+    assert_eq!(erc7551(token).get_active_balance_of(HOLDER), SUPPLY);
 }
 
 //
@@ -496,8 +504,19 @@ fn forced_transfer_caps_allowance_spend_at_allowance() {
     start_cheat_caller_address(token, HOLDER);
     erc20(token).approve(RECIPIENT, 10);
     start_cheat_caller_address(token, ADMIN);
+    let mut spy = spy_events();
     erc7943(token).forced_transfer(HOLDER, RECIPIENT, 30);
     assert_eq!(erc20(token).allowance(HOLDER, RECIPIENT), 0);
+    // `Spend` reports what was taken from the allowance, not the transfer value.
+    spy
+        .assert_emitted_single(
+            token,
+            ERC20BaseComponent::Event::Spend(
+                ERC20BaseComponent::Spend { account: HOLDER, spender: RECIPIENT, value: 10 },
+            ),
+        );
+    spy.assert_emitted_single(token, transfer_event(HOLDER, RECIPIENT, 30));
+    spy.assert_only_event(token, forced_transfer_event(HOLDER, RECIPIENT, 30, array![].span()));
 }
 
 #[test]
@@ -506,8 +525,12 @@ fn forced_transfer_keeps_infinite_allowance() {
     start_cheat_caller_address(token, HOLDER);
     erc20(token).approve(RECIPIENT, Bounded::MAX);
     start_cheat_caller_address(token, ADMIN);
+    let mut spy = spy_events();
     erc7943(token).forced_transfer(HOLDER, RECIPIENT, 30);
     assert_eq!(erc20(token).allowance(HOLDER, RECIPIENT), Bounded::MAX);
+    // No `Spend`: only the transfer and the forced-transfer events.
+    spy.assert_emitted_single(token, transfer_event(HOLDER, RECIPIENT, 30));
+    spy.assert_only_event(token, forced_transfer_event(HOLDER, RECIPIENT, 30, array![].span()));
 }
 
 #[test]

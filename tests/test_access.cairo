@@ -161,8 +161,47 @@ fn grant_role_requires_role_admin() {
 fn revoke_role_removes_role() {
     let (token, access) = setup();
     grant(token, MINTER_ROLE, MINTER);
+    let mut spy = spy_events();
     access.revoke_role(MINTER_ROLE, MINTER);
     assert!(!access.has_role(MINTER_ROLE, MINTER));
+    spy
+        .assert_only_event(
+            token,
+            AccessControlComponent::Event::RoleRevoked(
+                AccessControlComponent::RoleRevoked {
+                    role: MINTER_ROLE, account: MINTER, sender: ADMIN,
+                },
+            ),
+        );
+}
+
+/// Adminship handover: grant to the new admin, then the old admin renounces.
+#[test]
+#[feature("safe_dispatcher")]
+fn admin_can_hand_over_adminship() {
+    let (token, access) = setup();
+    grant(token, DEFAULT_ADMIN_ROLE, OTHER);
+    let mut spy = spy_events();
+    access.renounce_role(DEFAULT_ADMIN_ROLE, ADMIN);
+    spy
+        .assert_only_event(
+            token,
+            AccessControlComponent::Event::RoleRevoked(
+                AccessControlComponent::RoleRevoked {
+                    role: DEFAULT_ADMIN_ROLE, account: ADMIN, sender: ADMIN,
+                },
+            ),
+        );
+    assert!(!access.has_role(DEFAULT_ADMIN_ROLE, ADMIN));
+    assert!(!access.has_role(MINTER_ROLE, ADMIN));
+    assert_reverted_with(
+        IAccessControlSafeDispatcher { contract_address: token }.grant_role(MINTER_ROLE, MINTER),
+        array![AccessControlComponent::Errors::MISSING_ROLE].span(),
+    );
+    start_cheat_caller_address(token, OTHER);
+    access.grant_role(MINTER_ROLE, MINTER);
+    assert!(access.has_role(MINTER_ROLE, MINTER));
+    assert!(access.has_role(PAUSER_ROLE, OTHER));
 }
 
 #[test]

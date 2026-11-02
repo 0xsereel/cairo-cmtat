@@ -58,6 +58,18 @@ fn freeze_and_unfreeze() {
 }
 
 #[test]
+fn unfreeze_with_data_emits_data() {
+    let token = setup();
+    enforcement(token).set_address_frozen(HOLDER, true);
+    let data = array!['cleared'].span();
+    let mut spy = spy_events();
+    ICMTATEnforcementDispatcher { contract_address: token }
+        .set_address_frozen_with_data(HOLDER, false, data);
+    assert!(!enforcement(token).is_frozen(HOLDER));
+    spy.assert_only_event(token, address_frozen_event(HOLDER, false, ENFORCER, data));
+}
+
+#[test]
 fn freeze_emits_event_with_empty_data() {
     let token = setup();
     let mut spy = spy_events();

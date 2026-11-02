@@ -28,19 +28,19 @@ These differences are not counted as partial anywhere in the tables:
 |---|---:|---:|---:|---:|---:|
 | `ERC20MintModuleCommon` | 34 | 33 | 1 | 0 | 0 |
 | `ERC20BurnModuleCommon` | 30 | 29 | 1 | 0 | 0 |
-| `ERC20BaseModuleCommon` | 25 | 22 | 3 | 0 | 0 |
-| `ERC20EnforcementModuleCommon` | 56 | 52 | 4 | 0 | 0 |
+| `ERC20BaseModuleCommon` | 25 | 24 | 1 | 0 | 0 |
+| `ERC20EnforcementModuleCommon` | 56 | 56 | 0 | 0 | 0 |
 | `ERC20EnforcementERC7551ModuleCommon` | 4 | 4 | 0 | 0 | 0 |
-| `EnforcementModuleCommon` | 21 | 18 | 3 | 0 | 0 |
+| `EnforcementModuleCommon` | 21 | 19 | 2 | 0 | 0 |
 | `ValidationModule/ValidationModuleCommon` | 27 | 24 | 3 | 0 | 0 |
 | `ValidationModule/ValidationModuleCommonCore` | 4 | 4 | 0 | 0 | 0 |
 | `ValidationModule/ValidationModuleSetRuleEngineCommon` | 6 | 5 | 0 | 0 | 1 |
 | `ValidationModule/RuleEngineReentrancyCommon` | 7 | 5 | 1 | 0 | 1 |
 | `ValidationModule/RuleEngineSpenderDispatchCommon` | 11 | 9 | 0 | 0 | 2 |
-| `PauseModuleCommon` | 15 | 13 | 2 | 0 | 0 |
-| `AuthorizationModule/AuthorizationModuleCommon` | 5 | 3 | 2 | 0 | 0 |
+| `PauseModuleCommon` | 15 | 14 | 1 | 0 | 0 |
+| `AuthorizationModule/AuthorizationModuleCommon` | 5 | 5 | 0 | 0 | 0 |
 | `standard/modules/RuleEngineMockStatefulRule` | 2 | 0 | 0 | 0 | 2 |
-| `AllowlistModuleCommon` | 36 | 28 | 8 | 0 | 0 |
+| `AllowlistModuleCommon` | 36 | 30 | 6 | 0 | 0 |
 | `DocumentModule/DocumentModuleCommon` | 13 | 12 | 0 | 0 | 1 |
 | `ExtraInfoModuleCommon` | 8 | 8 | 0 | 0 | 0 |
 | `DebtModule/DebtModuleCommon` | 5 | 5 | 0 | 0 | 0 |
@@ -49,7 +49,7 @@ These differences are not counted as partial anywhere in the tables:
 | `CMTATIntegrationCommon` | 4 | 4 | 0 | 0 | 0 |
 | `proxy/general` (upgrades) | 10 | 4 | 0 | 0 | 6 |
 | `deployment/*` (constructor behaviour) | 13 | 9 | 2 | 0 | 2 |
-| **Total** | **343** | **296** | **30** | **0** | **17** |
+| **Total** | **343** | **308** | **18** | **0** | **17** |
 
 ### Families not ported
 
@@ -79,15 +79,9 @@ These are the gaps and partials worth closing, most important first. The ids are
 7. ~~**P7: allowance edge cases.**~~ Closed. Covered: `approve(0)` while deactivated and after the spender is delisted (NM-3), overwriting a non-zero allowance, zero-value `transfer_from` without allowance, `transfer_from` to self, and spending an allowance exactly.
 8. ~~**P8: reentrancy with partial freeze.**~~ Closed by `rule_engine::reentrant_engine_cannot_move_frozen_tokens`.
 9. ~~**P9: upgrade coverage.**~~ Closed. A Snapshot preset upgraded to `CMTATSnapshotV2Mock` keeps its SnapshotEngine, which is still notified; `information()` and `terms()` are checked after both upgrade tests; every preset rejects `admin = 0`.
-10. **P10: events (minor).** The batch length, empty-input and role-order checks, the allowlist unlisted-to-unlisted read, empty `batch_balance_of`, unknown interface ids and zero-to-zero engine setters are closed. Left:
-    - The `Spend` value when a forced transfer caps the spend, and no `Spend` when the allowance is infinite.
-    - The unfreeze `AddressFrozen` event with data.
-    - Per-account events for a batch allowlist update.
-    - Re-enabling the allowlist.
-    - `RoleRevoked`, and handing over the admin role.
-    - Transfers working again after unpause.
-    - Zero-value and self `Transfer` events.
+10. ~~**P10: events and argument order (minor).**~~ Closed. Batch length, empty-input and role-order checks; allowlist unlisted-to-unlisted reads; empty `batch_balance_of`; unknown interface ids; zero-to-zero engine setters; the capped and absent `Spend` on forced transfers; unfreeze events (with data, twice); per-account and re-enable allowlist events; `RoleRevoked` and admin handover; transfers after unpause; zero-value and self `Transfer` events.
 
+The remaining 18 partial rows are minor details (noted per row) and are not tracked as open items.
 ---
 
 ## Case tables
@@ -186,8 +180,8 @@ These are the gaps and partials worth closing, most important first. The ids are
 | testApproveZeroValue | partial | `erc20_base::approve_zero_is_always_allowed` | `Approval(…, 0)` event not checked |
 | testTransferFromOneAccountToAnother | covered | `erc20_base::transfer_moves_balance_and_emits_transfer_only` | |
 | testCannotTransferMoreTokensThanOwn | covered | `erc20_base::transfer_above_balance_reverts_with_insufficient_balance` | |
-| testCanTransferZeroValue | partial | `erc1404::zero_value_with_fully_frozen_balance_is_allowed` | Event and balances not checked (P10) |
-| testCanTransferToSelf | partial | `snapshot::self_transfer_reports_unchanged_balance` | Event and balance not checked (P10) |
+| testCanTransferZeroValue | covered | `erc20_base::transfer_zero_value_emits_transfer`, `erc1404::zero_value_with_fully_frozen_balance_is_allowed` | |
+| testCanTransferToSelf | covered | `erc20_base::transfer_to_self_keeps_balance_and_emits_transfer`, `snapshot::self_transfer_reports_unchanged_balance` | |
 | testTransferByAnotherAccountWithTheRightAllowance | covered | `erc20_base::transfer_from_spends_allowance_and_emits_spend_without_approval` | |
 | testCannotTransferByAnotherAccountWithInsufficientAllowance | covered | `erc20_base::transfer_from_rejects_insufficient_allowance` | |
 | testCannotTransferByAnotherAccountWithInsufficientBalance | covered | `erc20_base::transfer_from_above_balance_reverts_with_insufficient_balance` | |
@@ -204,10 +198,10 @@ These are the gaps and partials worth closing, most important first. The ids are
 | …AndUnfreezeTokens | covered | `erc20_enforcement::forced_transfer_unfreezes_only_shortfall`, `fuzz` | |
 | …WithoutUnfreezeTokens | covered | `erc20_enforcement::forced_transfer_within_active_balance_keeps_frozen` | |
 | ForceTransferBurn AndUnfreezeTokens | covered | `erc20_enforcement::forced_transfer_to_zero_burns`, `fuzz::forced_transfer_unfreezes_only_shortfall` | |
-| …AndReduceAllowanceToZero | partial | `erc20_enforcement::forced_transfer_caps_allowance_spend_at_allowance` | Capped `Spend` value not checked (P10) |
+| …AndReduceAllowanceToZero | covered | `erc20_enforcement::forced_transfer_caps_allowance_spend_at_allowance` | |
 | …AndReduceAllowance | covered | `erc20_enforcement::forced_transfer_spends_recipient_allowance` | |
 | ForcedTransferWithoutAllowanceDoesNotEmitSpend | covered | `erc20_enforcement::forced_transfer_within_active_balance_keeps_frozen` | Asserts no other event |
-| ForcedTransferWithInfiniteAllowanceDoesNotEmitSpend | partial | `erc20_enforcement::forced_transfer_keeps_infinite_allowance` | No-`Spend` not asserted (P10) |
+| ForcedTransferWithInfiniteAllowanceDoesNotEmitSpend | covered | `erc20_enforcement::forced_transfer_keeps_infinite_allowance` | |
 | ForceBurnWithForceTransferAsAdmin | covered | `erc20_enforcement::forced_transfer_to_zero_burns`, `matrix` | |
 | …AsAdminWithoutReason | covered | `erc20_enforcement::forced_transfer_within_active_balance_keeps_frozen` | |
 | CannotForceTransfer…IfBalanceNotEnough | covered | `erc20_enforcement::forced_transfer_rejects_exceeding_balance` | |
@@ -217,8 +211,8 @@ These are the gaps and partials worth closing, most important first. The ids are
 | Freeze: AdminCanFreezeAddressTwice | covered | `erc20_enforcement::freeze_partial_tokens_accumulates_and_emits` | |
 | Freeze: EnforcerRoleCanFreezeAddress | covered | same | |
 | Freeze: AdminCanUnfreezeAddress | covered | `erc20_enforcement::unfreeze_partial_tokens_reduces_and_emits`, `fuzz` | |
-| Freeze: AdminCanUnfreezeAddressAndTransferMoreActiveBalance | partial | `erc20_enforcement::unfreeze_partial_tokens_with_data_emits_data` | `can_transfer` above the balance after a full unfreeze not checked (P10) |
-| Freeze: AdminCanUnfreezeAddressTwice | partial | `erc20_enforcement::unfreeze_partial_tokens_reduces_and_emits` | Only one unfreeze (P10) |
+| Freeze: AdminCanUnfreezeAddressAndTransferMoreActiveBalance | covered | `erc20_base::full_unfreeze_restores_whole_balance`, `erc20_enforcement::unfreeze_partial_tokens_with_data_emits_data` | As in CMTAT, `can_transfer` above the balance is true once nothing is frozen |
+| Freeze: AdminCanUnfreezeAddressTwice | covered | `erc20_enforcement::unfreeze_partial_tokens_reduces_and_emits` | |
 | Freeze: EnforcerRoleCanUnfreezeAddress | covered | `erc20_enforcement::unfreeze_partial_tokens_reduces_and_emits` | |
 | Freeze: Admin/EnforcerCanFreezeAddressReason (2) | covered | `erc20_enforcement::freeze_partial_tokens_with_data_emits_data` | |
 | Freeze: Admin/EnforcerCanUnfreezeAddressReason (2) | covered | `erc20_enforcement::unfreeze_partial_tokens_with_data_emits_data` | |
@@ -272,7 +266,7 @@ These are the gaps and partials worth closing, most important first. The ids are
 | AdminCanBatchFreezeAddress | covered | `enforcement::batch_freeze_sets_each_status_and_emits_per_account` | |
 | AdminCanBatchPartialFreezeAddress | covered | same | |
 | EnforcerRoleCanFreezeAddress | covered | `enforcement::freeze_with_data_emits_data` | |
-| AdminCanUnfreezeAddress | partial | `enforcement::freeze_and_unfreeze` | Unfreeze event with data not checked (P10) |
+| AdminCanUnfreezeAddress | covered | `enforcement::freeze_and_unfreeze`, `unfreeze_with_data_emits_data` | |
 | EnforcerRoleCanUnfreezeAddress | partial | `enforcement::freeze_and_unfreeze` | Same |
 | CannotNonEnforcerFreezeAddress | covered | `enforcement::freeze_requires_enforcer_role`, `freeze_with_data_requires_enforcer_role` | |
 | CannotNonEnforcerBatchFreezeAddress | covered | `enforcement::batch_freeze_requires_enforcer_role` | |
@@ -347,7 +341,7 @@ These are the gaps and partials worth closing, most important first. The ids are
 | testCanBePausedByAdmin | covered | `pause::admin_can_pause`, `preset_events::run_core` | |
 | testCanBePausedByPauserRole | covered | `pause::pause_by_pauser_emits_event` | |
 | testCannotBePausedByNonPauser | covered | `pause::pause_requires_pauser_role` | |
-| testCanBeUnpausedByAdmin | partial | `preset_events::run_core` | Transfer after unpause not checked (P10) |
+| testCanBeUnpausedByAdmin | covered | `preset_events::run_core`, `erc20_base::transfer_works_again_after_unpause` | |
 | testCanBeUnpausedByANewPauser | partial | `pause::unpause_by_pauser_emits_event` | Same |
 | testCannotBeUnpausedByNonPauser | covered | `pause::unpause_requires_pauser_role` | |
 | testCannotTransferTokenWhenPausedWithTransfer | covered | `matrix` (paused), `erc1404::messages_match_cmtat` | |
@@ -359,9 +353,9 @@ These are the gaps and partials worth closing, most important first. The ids are
 | testCannotDeactivatedIfNotInPause | covered | `pause::deactivate_requires_pause` | |
 | testCannotBeDeactivatedByNonAdmin | covered | `pause::deactivate_requires_default_admin` | |
 | testCannotBeDeactivatedTwice | covered | `pause::deactivate_twice_reverts` | |
-| Auth: testAdminCanTransmitAdminship | partial | `access::revoking_admin_removes_implicit_roles` | No renounce or new-admin flow (P10) |
+| Auth: testAdminCanTransmitAdminship | covered | `access::admin_can_hand_over_adminship`, `revoking_admin_removes_implicit_roles` | |
 | Auth: testAdminCanGrantRole | covered | `access::grant_role_emits_event` | |
-| Auth: testAdminCanRevokeRole | partial | `access::revoke_role_removes_role` | `RoleRevoked` not checked (P10) |
+| Auth: testAdminCanRevokeRole | covered | `access::revoke_role_removes_role` | |
 | Auth: testCannotNonAdminGrantRole | covered | `access::grant_role_requires_role_admin` | |
 | Auth: testCannotNonAdminRevokeRole | covered | `access::revoke_role_requires_role_admin` | |
 
@@ -371,11 +365,11 @@ These are the gaps and partials worth closing, most important first. The ids are
 |---|---|---|---|
 | AdminCanAllowlistAddress | covered | `allowlist::set_address_allowlist_emits`, `presets::admin_holds_every_role` | |
 | AdminCanAllowlistAddressWithoutReason | covered | `allowlist::set_address_allowlist_emits` | |
-| AdminCanBatchAllowlistAddress | partial | `allowlist::batch_set_address_allowlist_sets_each` | Per-account events not checked (P10) |
+| AdminCanBatchAllowlistAddress | covered | `allowlist::batch_set_address_allowlist_sets_each` | |
 | AdminCanBatchPartialAllowlistAddress | partial | same | Same |
 | ReasonParameterCanBeEmptyString | covered | `allowlist::set_address_allowlist_emits` | |
 | EnforcerRoleCanAllowlistAddress | covered | same | |
-| AdminCanEnableAllowlistAddress | partial | `allowlist::enable_allowlist_emits` | Re-enable not tested (P10) |
+| AdminCanEnableAllowlistAddress | covered | `allowlist::enable_allowlist_emits`, `re_enable_allowlist_restores_enforcement` | |
 | AdminCanUnAllowlistAddress | covered | `allowlist::set_address_allowlist_with_data_emits_data` | |
 | EnforcerRoleCanUnAllowlistAddress | covered | same | |
 | CannotNonEnforcerAllowlistAddress | covered | `allowlist::management_requires_allowlist_role` | |

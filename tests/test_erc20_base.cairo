@@ -16,6 +16,9 @@ use cairo_cmtat::interfaces::pause::{
     IERC3643PauseDispatcher, IERC3643PauseDispatcherTrait, IERC8343Dispatcher,
     IERC8343DispatcherTrait,
 };
+use cairo_cmtat::interfaces::validation::{
+    IERC3643ComplianceReadDispatcher, IERC3643ComplianceReadDispatcherTrait,
+};
 use cairo_cmtat::roles::{ENFORCER_ROLE, ERC20ENFORCER_ROLE, PAUSER_ROLE};
 use core::num::traits::Bounded;
 use openzeppelin::interfaces::accesscontrol::{
@@ -173,6 +176,60 @@ fn transfer_moves_balance_and_emits_transfer_only() {
     assert!(erc20(token).transfer(RECIPIENT, 100));
     assert_eq!(erc20(token).balance_of(RECIPIENT), 100);
     spy.assert_only_event(token, transfer_event(HOLDER, RECIPIENT, 100));
+}
+
+#[test]
+fn transfer_zero_value_emits_transfer() {
+    let token = setup();
+    start_cheat_caller_address(token, HOLDER);
+    let mut spy = spy_events();
+    assert!(erc20(token).transfer(RECIPIENT, 0));
+    assert_eq!(erc20(token).balance_of(HOLDER), SUPPLY);
+    assert_eq!(erc20(token).balance_of(RECIPIENT), 0);
+    spy.assert_only_event(token, transfer_event(HOLDER, RECIPIENT, 0));
+}
+
+#[test]
+fn transfer_to_self_keeps_balance_and_emits_transfer() {
+    let token = setup();
+    start_cheat_caller_address(token, HOLDER);
+    let mut spy = spy_events();
+    assert!(erc20(token).transfer(HOLDER, 100));
+    assert_eq!(erc20(token).balance_of(HOLDER), SUPPLY);
+    assert_eq!(erc20(token).total_supply(), SUPPLY);
+    spy.assert_only_event(token, transfer_event(HOLDER, HOLDER, 100));
+}
+
+/// After a full unfreeze the whole balance can move. As in CMTAT, the read path
+/// checks the balance only while tokens are frozen, so `can_transfer` above the
+/// balance is true; the transfer itself still reverts on balance.
+#[test]
+#[feature("safe_dispatcher")]
+fn full_unfreeze_restores_whole_balance() {
+    let token = setup();
+    freeze_partial(token, HOLDER, FROZEN);
+    IERC3643ERC20EnforcementDispatcher { contract_address: token }
+        .unfreeze_partial_tokens(HOLDER, FROZEN);
+    let read = IERC3643ComplianceReadDispatcher { contract_address: token };
+    assert!(read.can_transfer(HOLDER, RECIPIENT, SUPPLY));
+    assert!(read.can_transfer(HOLDER, RECIPIENT, SUPPLY + 1));
+    assert_reverted_with(
+        as_caller(token, HOLDER).transfer(RECIPIENT, SUPPLY + 1),
+        array![ERC20Component::Errors::INSUFFICIENT_BALANCE].span(),
+    );
+    start_cheat_caller_address(token, HOLDER);
+    erc20(token).transfer(RECIPIENT, SUPPLY);
+    assert_eq!(erc20(token).balance_of(RECIPIENT), SUPPLY);
+}
+
+#[test]
+fn transfer_works_again_after_unpause() {
+    let token = setup();
+    pause(token);
+    IERC3643PauseDispatcher { contract_address: token }.unpause();
+    start_cheat_caller_address(token, HOLDER);
+    assert!(erc20(token).transfer(RECIPIENT, 100));
+    assert_eq!(erc20(token).balance_of(RECIPIENT), 100);
 }
 
 #[test]
