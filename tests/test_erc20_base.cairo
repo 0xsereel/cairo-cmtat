@@ -142,6 +142,15 @@ fn batch_balance_of_returns_balances_and_total_supply() {
 }
 
 #[test]
+fn batch_balance_of_empty_returns_only_total_supply() {
+    let token = setup();
+    let (balances, total_supply) = IERC20BatchBalanceDispatcher { contract_address: token }
+        .batch_balance_of(array![].span());
+    assert_eq!(balances, array![]);
+    assert_eq!(total_supply, SUPPLY);
+}
+
+#[test]
 fn camel_case_reads_and_transfer_from() {
     let token = setup();
     approve(token, HOLDER, SPENDER, 100);

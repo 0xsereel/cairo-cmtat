@@ -26,30 +26,30 @@ These differences are not counted as partial anywhere in the tables:
 
 | Family (CMTAT `test/common/…`) | Cases | Covered | Partial | Gap | n/a |
 |---|---:|---:|---:|---:|---:|
-| `ERC20MintModuleCommon` | 34 | 31 | 1 | 2 | 0 |
-| `ERC20BurnModuleCommon` | 30 | 26 | 1 | 3 | 0 |
-| `ERC20BaseModuleCommon` | 25 | 21 | 4 | 0 | 0 |
+| `ERC20MintModuleCommon` | 34 | 33 | 1 | 0 | 0 |
+| `ERC20BurnModuleCommon` | 30 | 29 | 1 | 0 | 0 |
+| `ERC20BaseModuleCommon` | 25 | 22 | 3 | 0 | 0 |
 | `ERC20EnforcementModuleCommon` | 56 | 52 | 4 | 0 | 0 |
 | `ERC20EnforcementERC7551ModuleCommon` | 4 | 4 | 0 | 0 | 0 |
-| `EnforcementModuleCommon` | 21 | 16 | 5 | 0 | 0 |
+| `EnforcementModuleCommon` | 21 | 18 | 3 | 0 | 0 |
 | `ValidationModule/ValidationModuleCommon` | 27 | 24 | 3 | 0 | 0 |
 | `ValidationModule/ValidationModuleCommonCore` | 4 | 4 | 0 | 0 | 0 |
-| `ValidationModule/ValidationModuleSetRuleEngineCommon` | 6 | 4 | 1 | 0 | 1 |
+| `ValidationModule/ValidationModuleSetRuleEngineCommon` | 6 | 5 | 0 | 0 | 1 |
 | `ValidationModule/RuleEngineReentrancyCommon` | 7 | 5 | 1 | 0 | 1 |
 | `ValidationModule/RuleEngineSpenderDispatchCommon` | 11 | 9 | 0 | 0 | 2 |
 | `PauseModuleCommon` | 15 | 13 | 2 | 0 | 0 |
 | `AuthorizationModule/AuthorizationModuleCommon` | 5 | 3 | 2 | 0 | 0 |
 | `standard/modules/RuleEngineMockStatefulRule` | 2 | 0 | 0 | 0 | 2 |
-| `AllowlistModuleCommon` | 36 | 25 | 10 | 1 | 0 |
+| `AllowlistModuleCommon` | 36 | 28 | 8 | 0 | 0 |
 | `DocumentModule/DocumentModuleCommon` | 13 | 12 | 0 | 0 | 1 |
 | `ExtraInfoModuleCommon` | 8 | 8 | 0 | 0 | 0 |
 | `DebtModule/DebtModuleCommon` | 5 | 5 | 0 | 0 | 0 |
 | `SnapshotModuleCommon/SnapshotModuleSetSnapshotEngineCommon` | 6 | 4 | 0 | 0 | 2 |
 | `VersionModuleCommon` | 1 | 1 | 0 | 0 | 0 |
-| `CMTATIntegrationCommon` | 4 | 3 | 1 | 0 | 0 |
+| `CMTATIntegrationCommon` | 4 | 4 | 0 | 0 | 0 |
 | `proxy/general` (upgrades) | 10 | 4 | 0 | 0 | 6 |
-| `deployment/*` (constructor behaviour) | 13 | 8 | 3 | 0 | 2 |
-| **Total** | **343** | **282** | **38** | **6** | **17** |
+| `deployment/*` (constructor behaviour) | 13 | 9 | 2 | 0 | 2 |
+| **Total** | **343** | **296** | **30** | **0** | **17** |
 
 ### Families not ported
 
@@ -79,19 +79,14 @@ These are the gaps and partials worth closing, most important first. The ids are
 7. ~~**P7: allowance edge cases.**~~ Closed. Covered: `approve(0)` while deactivated and after the spender is delisted (NM-3), overwriting a non-zero allowance, zero-value `transfer_from` without allowance, `transfer_from` to self, and spending an allowance exactly.
 8. ~~**P8: reentrancy with partial freeze.**~~ Closed by `rule_engine::reentrant_engine_cannot_move_frozen_tokens`.
 9. ~~**P9: upgrade coverage.**~~ Closed. A Snapshot preset upgraded to `CMTATSnapshotV2Mock` keeps its SnapshotEngine, which is still notified; `information()` and `terms()` are checked after both upgrade tests; every preset rejects `admin = 0`.
-10. **P10: events and argument order (minor).**
+10. **P10: events (minor).** The batch length, empty-input and role-order checks, the allowlist unlisted-to-unlisted read, empty `batch_balance_of`, unknown interface ids and zero-to-zero engine setters are closed. Left:
     - The `Spend` value when a forced transfer caps the spend, and no `Spend` when the allowance is infinite.
     - The unfreeze `AddressFrozen` event with data.
-    - Role checks running before empty-array checks in batch freeze.
-    - Empty-accounts checks running before length-mismatch checks.
-    - Length mismatch in both directions for every batch call.
     - Per-account events for a batch allowlist update.
     - Re-enabling the allowlist.
     - `RoleRevoked`, and handing over the admin role.
     - Transfers working again after unpause.
     - Zero-value and self `Transfer` events.
-    - `batch_balance_of` with an empty span.
-    - `set_rule_engine` and `set_snapshot_engine` from zero to zero.
 
 ---
 
@@ -118,7 +113,7 @@ These are the gaps and partials worth closing, most important first. The ids are
 | testBatchMintPropagatesSpenderToRuleEngine | covered | `rule_engine::batch_mint_calls_engine_per_account`, `rejecting_engine_reverts_batch_mint` | |
 | testBatchMintWithRuleEngineAuthorizedSpenderCanMint | covered | `rule_engine::batch_mint_calls_engine_per_account` | |
 | testCannotBatchMintByNonMinter | covered | `mint::batch_mint_requires_minter_role` | |
-| testCannotBatchMintIfLengthMismatchMissingAddresses | gap | | P10 |
+| testCannotBatchMintIfLengthMismatchMissingAddresses | covered | `mint::batch_mint_rejects_length_mismatch` | |
 | testCannotBatchMintIfLengthMismatchTooManyAddresses | covered | `mint::batch_mint_rejects_length_mismatch` | |
 | testCannotBatchMintIfTOSIsEmpty | covered | `mint::batch_mint_rejects_empty_accounts` | |
 | testCanBeMintedBatchEvenIfContractIsPaused | covered | `matrix` (paused, `BATCH_MINT`) | |
@@ -127,7 +122,7 @@ These are the gaps and partials worth closing, most important first. The ids are
 | testbatchTransfer | covered | `mint::batch_transfer_moves_minter_tokens` | |
 | testCannotBatchTransferMoreTokensThanOwn | covered | `mint::batch_transfer_is_atomic_on_insufficient_balance`, `batch_transfer_respects_active_balance` | |
 | testCannotBatchTransferIfLengthMismatchMissingAddresses | covered | `mint::batch_transfer_rejects_length_mismatch` | |
-| testCannotBatchTransferIfLengthMismatchTooManyAddresses | gap | | P10 |
+| testCannotBatchTransferIfLengthMismatchTooManyAddresses | covered | `mint::batch_transfer_rejects_length_mismatch` | |
 | testCannotBatchTransferIfTOSIsEmpty | covered | `mint::batch_transfer_rejects_empty_tos` | |
 | testCannotBeBatchTransferIfContractIsPaused | covered | `mint::batch_transfer_reverts_when_paused`, `matrix` | |
 | testCannotBeBatchMTransferIfContractIsDeactivated | covered | `matrix` (deactivated, `BATCH_TRANSFER`) | Pause error, as in CMTAT |
@@ -159,15 +154,15 @@ These are the gaps and partials worth closing, most important first. The ids are
 | testCanBeBurntBatchByAdminWithoutReason | covered | `burn::batch_burn_emits_batch_event_not_per_account_burn` | |
 | testCanBeBurntBatchByBurnerRoleWithoutReason | covered | same | |
 | testCanBeBurntBatchByBurnerRole | covered | `burn::batch_burn_with_data_emits_data` | |
-| testCannotBeBurntBatchWithoutBurnerRole | gap | | P10 |
+| testCannotBeBurntBatchWithoutBurnerRole | covered | `burn::batch_burn_requires_burner_role` | |
 | testCannotBeBurntBatchIfOneBalanceExceeds | covered | `burn::batch_burn_is_atomic_on_insufficient_balance` | |
 | testCannotBatchBurnIfLengthMismatchMissingAddresses | covered | `burn::batch_burn_rejects_length_mismatch` | |
-| testCannotBatchBurnIfLengthMismatchTooManyAddresses | gap | | P10 |
+| testCannotBatchBurnIfLengthMismatchTooManyAddresses | covered | `burn::batch_burn_rejects_length_mismatch` | |
 | testCannotBatchBurnIfAccountsIsEmpty | covered | `burn::batch_burn_rejects_empty_accounts` | |
 | testCanBeBatchBurnEvenIfContractIsPaused | covered | `matrix` (paused, `BATCH_BURN`) | |
 | testCannotBeBatchBurnIfContractIsDeactivated | covered | `matrix` (deactivated, `BATCH_BURN`) | |
 | testCannotBeBatchBurnIfToIsFrozen | covered | `burn::batch_burn_is_atomic_on_frozen_account` | |
-| testCanBatchBurnWithExactBalances | gap | | P10 |
+| testCanBatchBurnWithExactBalances | covered | `burn::batch_burn_with_exact_balances` | |
 | testBatchBurnPropagatesSpenderToRuleEngine | covered | `rule_engine::batch_burn_calls_engine_per_account` | |
 | testBatchBurnWithRuleEngineAuthorizedSpenderCanBurn | covered | `rule_engine::batch_burn_calls_engine_per_account` | |
 
@@ -185,7 +180,7 @@ These are the gaps and partials worth closing, most important first. The ids are
 | testCannotApproveIfSpenderIsFrozen | covered | `erc20_base::approve_reverts_when_spender_frozen` | |
 | testAdminCanUpdateSymbol | covered | `attributes::set_symbol_updates_metadata_and_emits` | |
 | testCannotNonAdminUpdateSymbol | covered | `attributes::set_name_and_symbol_require_default_admin` | |
-| testHasTheCorrectBalanceBatch | partial | `erc20_base::batch_balance_of_returns_balances_and_total_supply` | Empty input not tested (P10) |
+| testHasTheCorrectBalanceBatch | covered | `erc20_base::batch_balance_of_returns_balances_and_total_supply`, `batch_balance_of_empty_returns_only_total_supply` | |
 | testApproveAllowance | covered | `preset_events::run_core` | |
 | testRedefinedAllowanceWithApprove | covered | `erc20_base::approve_overwrites_nonzero_allowance`, `approve_zero_is_always_allowed` | |
 | testApproveZeroValue | partial | `erc20_base::approve_zero_is_always_allowed` | `Approval(…, 0)` event not checked |
@@ -280,7 +275,7 @@ These are the gaps and partials worth closing, most important first. The ids are
 | AdminCanUnfreezeAddress | partial | `enforcement::freeze_and_unfreeze` | Unfreeze event with data not checked (P10) |
 | EnforcerRoleCanUnfreezeAddress | partial | `enforcement::freeze_and_unfreeze` | Same |
 | CannotNonEnforcerFreezeAddress | covered | `enforcement::freeze_requires_enforcer_role`, `freeze_with_data_requires_enforcer_role` | |
-| CannotNonEnforcerBatchFreezeAddress | partial | `enforcement::batch_freeze_requires_enforcer_role` | Role check before the empty check not pinned (P10) |
+| CannotNonEnforcerBatchFreezeAddress | covered | `enforcement::batch_freeze_requires_enforcer_role` | |
 | CannotNonEnforcerUnfreezeAddress | partial | `enforcement::freeze_requires_enforcer_role` | Unfreeze direction not tested |
 | CannotFreezeZeroAddress | covered | `enforcement::freeze_with_data_rejects_zero_address` | |
 | CannotFreezeZeroAddressWithoutReason | covered | `enforcement::freeze_rejects_zero_address` | |
@@ -293,7 +288,7 @@ These are the gaps and partials worth closing, most important first. The ids are
 | CannotTransferTokenWhenSpenderIsFrozenWithTransferFrom | covered | `matrix`, `erc20_base::transfer_from_reverts_when_spender_frozen` | |
 | ReasonParameterCanBeEmptyString | covered | `enforcement::freeze_emits_event_with_empty_data` | |
 | CannotBatchFrozenIfLengthMismatchTooManyAddresses | covered | `enforcement::batch_freeze_rejects_length_mismatch` | |
-| CannotBatchFrozenIfAccountsIsEmpty | partial | `enforcement::batch_freeze_rejects_empty_accounts` | Empty-accounts error over length mismatch not pinned (P10) |
+| CannotBatchFrozenIfAccountsIsEmpty | covered | `enforcement::batch_freeze_rejects_empty_accounts`, `batch_freeze_rejects_length_mismatch` | |
 
 ### ValidationModule families
 
@@ -328,7 +323,7 @@ These are the gaps and partials worth closing, most important first. The ids are
 | Core: testCanTransferAllowed, testCanTransfer | covered | `matrix` (Light), `erc20_base::transfer_moves_balance_and_emits_transfer_only` | |
 | SetRuleEngine: testCanReturnTheRightInterface | n/a | | Tests the Solidity mock's ERC-165 ids |
 | SetRuleEngine: testCanBeSetByAdmin | covered | `rule_engine::set_rule_engine_stores_and_emits` | |
-| SetRuleEngine: testCanNotBeSetByAdminWithTheSameValue | partial | `rule_engine::set_rule_engine_rejects_same_value` | Zero to zero not tested (P10) |
+| SetRuleEngine: testCanNotBeSetByAdminWithTheSameValue | covered | `rule_engine::set_rule_engine_rejects_same_value` | |
 | SetRuleEngine: testCannotBeSetByNonAdmin | covered | `rule_engine::set_rule_engine_requires_default_admin` | |
 | SetRuleEngine: testCanReturnMessageWithNoRuleEngineAndUnknownRestrictionCode | covered | `erc1404::messages_match_cmtat` | |
 | SetRuleEngine: testCanDetectTransferRestrictionValidTransferWithoutRuleEngine | covered | `matrix` | |
@@ -389,8 +384,8 @@ These are the gaps and partials worth closing, most important first. The ids are
 | CannotTransferWhenFromIsNotAllowlist | covered | `allowlist::transfer_from_unlisted_sender_reverts` | |
 | CanTransferMatrix listed/listed | covered | `allowlist::can_transfer_reflects_allowlist` | |
 | CanTransferMatrix listed/unlisted | covered | same | |
-| CanTransferMatrix unlisted/listed | partial | `allowlist::transfer_from_unlisted_sender_reverts` | Reads not checked |
-| CanTransferMatrix unlisted/unlisted | gap | | P10 |
+| CanTransferMatrix unlisted/listed | covered | `allowlist::can_transfer_reflects_allowlist`, `transfer_from_unlisted_sender_reverts` | |
+| CanTransferMatrix unlisted/unlisted | covered | `allowlist::can_transfer_reflects_allowlist` | |
 | ZeroValueTransferRequiresSenderAndReceiverAllowlisted | covered | `allowlist::zero_value_transfer_requires_listing` | |
 | CannotApproveWhenOwnerIsNotAllowlisted | covered | `allowlist::approve_requires_listed_owner_and_spender` | |
 | CanRevokeAllowanceWhenSpenderIsNotAllowlisted | covered | `allowlist::approve_zero_after_spender_is_delisted` | |
@@ -408,7 +403,7 @@ These are the gaps and partials worth closing, most important first. The ids are
 | CanTransferTokenWithTransferFrom | covered | `matrix` (allowlist), `allowlist::can_transfer_reflects_allowlist` | |
 | CannotTransferTokenWhenToIsNotAllowlistWithTransferFrom | covered | `allowlist::transfer_from_to_unlisted_reverts` | |
 | CannotTransferTokenWhenSpenderIsNotAllowlistWithTransferFrom | covered | `allowlist::transfer_from_requires_listed_spender` | |
-| CannotBatchAllowlistIfLengthMismatchTooManyAddresses | partial | `allowlist::batch_set_address_allowlist_validates_input` | One direction only (P10) |
+| CannotBatchAllowlistIfLengthMismatchTooManyAddresses | covered | `allowlist::batch_set_address_allowlist_validates_input` | |
 | CannotBatchAllowlistIfAccountsIsEmpty | covered | same | |
 
 ### Documents, extra information, debt, snapshot, version
@@ -423,7 +418,7 @@ These are the gaps and partials worth closing, most important first. The ids are
 | Snapshot: CanInitializeWithZeroSnapshotEngine | covered | `snapshot_preset::constructor_sets_rule_engine_and_no_snapshot_engine` | |
 | Snapshot: CannotCallInitializeWithEnginesTwice | n/a | | A constructor runs once. The reinitializer is covered by `upgrade::migrate_runs_once` |
 | Snapshot: CanBeSetByAdmin | covered | `snapshot::set_snapshot_engine_stores_and_emits`, `preset_events` | |
-| Snapshot: CannotBeSetByAdminWithTheSameValue | covered | `snapshot::set_snapshot_engine_rejects_same_value` | Zero to zero not tested (P10) |
+| Snapshot: CannotBeSetByAdminWithTheSameValue | covered | `snapshot::set_snapshot_engine_rejects_same_value` | |
 | Snapshot: CannotBeSetByNonAdmin | covered | `snapshot::set_snapshot_engine_requires_snapshooter_role` | |
 | Version: HasTheDefinedVersion | covered | `attributes::version_is_cmtat_3_3_0`, `presets::deployment_defaults` | |
 
@@ -431,7 +426,7 @@ These are the gaps and partials worth closing, most important first. The ids are
 
 | CMTAT case | Status | Cairo test(s) | Note |
 |---|---|---|---|
-| Integration: SupportRightInterface | partial | `interface_ids::*_interfaces` | No unknown-id check |
+| Integration: SupportRightInterface | covered | `interface_ids::*_interfaces` | |
 | Integration: CMTATIntegration | covered | `preset_events::run_core` | ERC-7551 metadata and cross-chain parts are out of scope |
 | Integration: AdminCanUpdateInformation | covered | `attributes::admin_can_set_extra_information` | |
 | Integration: CanDeactivatedByAdminIfContractIsPaused | covered | `pause`, `erc1404::deactivated_code_1_but_transfer_reverts_with_pause`, `matrix` | |
@@ -444,7 +439,7 @@ These are the gaps and partials worth closing, most important first. The ids are
 | Deployment: Standard with or without a rule engine (2) | covered | `standard::constructor_without_rule_engine`, `constructor_sets_rule_engine` | |
 | Deployment: CannotInitializeStandardProxyTwice | n/a | | Constructor |
 | Deployment: ERC-721 mock | n/a | | Not ported |
-| Deployment: Light SupportRightInterface | partial | `interface_ids::light_interfaces` | No unknown-id check |
+| Deployment: Light SupportRightInterface | covered | `interface_ids::light_interfaces` | |
 | Deployment: Light forced burn (3) | covered | `forced_burn::*`, `matrix` (Light) | |
 | Deployment: allowlist enabled at deployment | covered | `allowlist::enabled_at_deployment` | |
 | Deployment: allowlist disabled, common suite | partial | `allowlist::disabled_allowlist_allows_unlisted` | Only transfer and `can_receive` checked |

@@ -227,6 +227,11 @@ fn batch_mint_requires_minter_role() {
         safe_mint(token).batch_mint(array![RECIPIENT].span(), array![1].span()),
         array![AccessControlComponent::Errors::MISSING_ROLE].span(),
     );
+    // The role check runs before input validation.
+    assert_reverted_with(
+        safe_mint(token).batch_mint(array![].span(), array![].span()),
+        array![AccessControlComponent::Errors::MISSING_ROLE].span(),
+    );
 }
 
 #[test]
@@ -246,6 +251,15 @@ fn batch_mint_rejects_length_mismatch() {
     assert_reverted_with(
         safe_mint(token).batch_mint(array![RECIPIENT, OTHER].span(), array![1].span()),
         array![errors::MINT_ACCOUNTS_VALUES_LEN_MISMATCH].span(),
+    );
+    assert_reverted_with(
+        safe_mint(token).batch_mint(array![RECIPIENT].span(), array![1, 2].span()),
+        array![errors::MINT_ACCOUNTS_VALUES_LEN_MISMATCH].span(),
+    );
+    // An empty account list wins over the length check.
+    assert_reverted_with(
+        safe_mint(token).batch_mint(array![].span(), array![1].span()),
+        array![errors::MINT_EMPTY_ACCOUNTS].span(),
     );
 }
 
@@ -381,5 +395,14 @@ fn batch_transfer_rejects_length_mismatch() {
     assert_reverted_with(
         safe_batch_transfer(token).batch_transfer(array![RECIPIENT].span(), array![1, 2].span()),
         array![errors::MINT_TOS_VALUES_LEN_MISMATCH].span(),
+    );
+    assert_reverted_with(
+        safe_batch_transfer(token)
+            .batch_transfer(array![RECIPIENT, OTHER].span(), array![1].span()),
+        array![errors::MINT_TOS_VALUES_LEN_MISMATCH].span(),
+    );
+    assert_reverted_with(
+        safe_batch_transfer(token).batch_transfer(array![].span(), array![1].span()),
+        array![errors::MINT_EMPTY_TOS].span(),
     );
 }

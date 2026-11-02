@@ -94,7 +94,7 @@ fn erc1404_ids_match_extended_selectors() {
 //
 
 /// Asserts that `token` supports exactly the ids in `expected` among all ids
-/// defined by OpenZeppelin and this crate.
+/// defined by OpenZeppelin and this crate, and no unknown id.
 fn assert_supports_exactly(token: ContractAddress, expected: Span<felt252>) {
     let src5 = ISRC5Dispatcher { contract_address: token };
     let all = array![
@@ -110,6 +110,9 @@ fn assert_supports_exactly(token: ContractAddress, expected: Span<felt252>) {
         }
         assert_eq!(src5.supports_interface(id), wanted, "interface {}", id);
     }
+    // Unknown ids, including ERC-165's invalid id
+    assert!(!src5.supports_interface(0xffffffff));
+    assert!(!src5.supports_interface(selector!("unknown()")));
 }
 
 /// CMTATBaseCore: ERC-5679, ERC-8343 and AccessControl. No ERC-7943 (Core has no

@@ -168,6 +168,14 @@ fn batch_set_address_allowlist_validates_input() {
         safe.batch_set_address_allowlist(array![HOLDER].span(), array![true, false].span()),
         array![errors::ENF_ACCOUNTS_VALUES_LEN_MISMATCH].span(),
     );
+    assert_reverted_with(
+        safe.batch_set_address_allowlist(array![HOLDER, RECIPIENT].span(), array![true].span()),
+        array![errors::ENF_ACCOUNTS_VALUES_LEN_MISMATCH].span(),
+    );
+    assert_reverted_with(
+        safe.batch_set_address_allowlist(array![].span(), array![true].span()),
+        array![errors::ENF_EMPTY_ACCOUNTS].span(),
+    );
 }
 
 #[test]
@@ -457,6 +465,10 @@ fn can_transfer_reflects_allowlist() {
     let token = setup();
     let read = IERC3643ComplianceReadDispatcher { contract_address: token };
     let read_from = IERC7551ComplianceDispatcher { contract_address: token };
+    // unlisted -> unlisted and unlisted -> listed
+    assert!(!read.can_transfer(RECIPIENT, SPENDER, 1));
+    assert!(!read.can_transfer(RECIPIENT, HOLDER, 1));
+    // listed -> unlisted, then listed -> listed
     assert!(!read.can_transfer(HOLDER, RECIPIENT, 1));
     list(token, RECIPIENT, true);
     assert!(read.can_transfer(HOLDER, RECIPIENT, 1));

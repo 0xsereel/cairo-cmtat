@@ -172,6 +172,11 @@ fn batch_freeze_requires_enforcer_role() {
             .batch_set_address_frozen(array![HOLDER].span(), array![true].span()),
         array![AccessControlComponent::Errors::MISSING_ROLE].span(),
     );
+    // The role check runs before input validation.
+    assert_reverted_with(
+        safe_enforcement(token).batch_set_address_frozen(array![].span(), array![].span()),
+        array![AccessControlComponent::Errors::MISSING_ROLE].span(),
+    );
 }
 
 #[test]
@@ -192,6 +197,16 @@ fn batch_freeze_rejects_length_mismatch() {
         safe_enforcement(token)
             .batch_set_address_frozen(array![HOLDER, OTHER].span(), array![true].span()),
         array![errors::ENF_ACCOUNTS_VALUES_LEN_MISMATCH].span(),
+    );
+    assert_reverted_with(
+        safe_enforcement(token)
+            .batch_set_address_frozen(array![HOLDER].span(), array![true, false].span()),
+        array![errors::ENF_ACCOUNTS_VALUES_LEN_MISMATCH].span(),
+    );
+    // An empty account list wins over the length check.
+    assert_reverted_with(
+        safe_enforcement(token).batch_set_address_frozen(array![].span(), array![true].span()),
+        array![errors::ENF_EMPTY_ACCOUNTS].span(),
     );
 }
 

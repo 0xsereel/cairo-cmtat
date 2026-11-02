@@ -153,6 +153,12 @@ fn set_rule_engine_rejects_same_value() {
         IValidationRuleEngineSafeDispatcher { contract_address: s.token }.set_rule_engine(s.engine),
         array![errors::VALIDATION_SAME_VALUE].span(),
     );
+    // Zero to zero is also a no-op change.
+    IValidationRuleEngineDispatcher { contract_address: s.token }.set_rule_engine(ZERO);
+    assert_reverted_with(
+        IValidationRuleEngineSafeDispatcher { contract_address: s.token }.set_rule_engine(ZERO),
+        array![errors::VALIDATION_SAME_VALUE].span(),
+    );
 }
 
 #[test]

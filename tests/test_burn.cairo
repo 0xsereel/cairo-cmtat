@@ -265,6 +265,45 @@ fn batch_burn_rejects_length_mismatch() {
         safe_burn(token).batch_burn(array![HOLDER].span(), array![1, 2].span()),
         array![errors::BURN_ACCOUNTS_VALUES_LEN_MISMATCH].span(),
     );
+    assert_reverted_with(
+        safe_burn(token).batch_burn(array![HOLDER, RECIPIENT].span(), array![1].span()),
+        array![errors::BURN_ACCOUNTS_VALUES_LEN_MISMATCH].span(),
+    );
+    // An empty account list wins over the length check.
+    assert_reverted_with(
+        safe_burn(token).batch_burn(array![].span(), array![1].span()),
+        array![errors::BURN_EMPTY_ACCOUNTS].span(),
+    );
+}
+
+/// The role check runs before input validation.
+#[test]
+#[feature("safe_dispatcher")]
+fn batch_burn_requires_burner_role() {
+    let token = setup();
+    start_cheat_caller_address(token, HOLDER);
+    assert_reverted_with(
+        safe_burn(token).batch_burn(array![HOLDER].span(), array![1].span()),
+        array![AccessControlComponent::Errors::MISSING_ROLE].span(),
+    );
+    assert_reverted_with(
+        safe_burn(token).batch_burn(array![].span(), array![].span()),
+        array![AccessControlComponent::Errors::MISSING_ROLE].span(),
+    );
+    assert_eq!(erc20(token).balance_of(HOLDER), SUPPLY);
+}
+
+/// Burning every holder's full balance empties the supply.
+#[test]
+fn batch_burn_with_exact_balances() {
+    let token = setup();
+    start_cheat_caller_address(token, HOLDER);
+    erc20(token).transfer(RECIPIENT, 300);
+    start_cheat_caller_address(token, BURNER);
+    burn(token).batch_burn(array![HOLDER, RECIPIENT].span(), array![SUPPLY - 300, 300].span());
+    assert_eq!(erc20(token).balance_of(HOLDER), 0);
+    assert_eq!(erc20(token).balance_of(RECIPIENT), 0);
+    assert_eq!(erc20(token).total_supply(), 0);
 }
 
 #[test]

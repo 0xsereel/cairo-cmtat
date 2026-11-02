@@ -118,6 +118,12 @@ fn set_snapshot_engine_rejects_same_value() {
             .set_snapshot_engine(s.engine),
         array![errors::SNAPSHOT_SAME_VALUE].span(),
     );
+    // Zero to zero is also a no-op change.
+    ISnapshotEngineModuleDispatcher { contract_address: s.token }.set_snapshot_engine(ZERO);
+    assert_reverted_with(
+        ISnapshotEngineModuleSafeDispatcher { contract_address: s.token }.set_snapshot_engine(ZERO),
+        array![errors::SNAPSHOT_SAME_VALUE].span(),
+    );
 }
 
 #[test]
