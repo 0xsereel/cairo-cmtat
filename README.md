@@ -324,6 +324,8 @@ scripts/
 
 [`docs/parity.md`](docs/parity.md) maps each CMTAT v3.3.0 test case to the Cairo tests that cover it and lists the open items.
 
+[`docs/threat-model.md`](docs/threat-model.md) is for auditors: assets, roles and trust, external engines, residual risks and the differences from CMTAT that affect security.
+
 CI runs `scarb fmt --check`, `scarb build` (failing on any warning), `snforge test` with coverage, and the size check.
 
 ---
