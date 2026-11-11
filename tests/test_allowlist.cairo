@@ -1,0 +1,548 @@
+// SPDX-License-Identifier: MPL-2.0
+// AllowlistComponent: management, enforcement on every path, and its place in the
+// check order (after active balance, before pause and freeze), on the Allowlist
+// preset. With everyone listed the full validation matrix also runs against it.
+
+use cairo_cmtat::components::allowlist::AllowlistComponent;
+use cairo_cmtat::errors;
+use cairo_cmtat::interfaces::allowlist::{
+    IAllowlistModuleDispatcher, IAllowlistModuleDispatcherTrait, IAllowlistModuleSafeDispatcher,
+    IAllowlistModuleSafeDispatcherTrait,
+};
+use cairo_cmtat::interfaces::burn::{
+    IERC3643BurnDispatcher, IERC3643BurnDispatcherTrait, IERC3643BurnSafeDispatcher,
+    IERC3643BurnSafeDispatcherTrait,
+};
+use cairo_cmtat::interfaces::enforcement::{
+    IERC3643EnforcementDispatcher, IERC3643EnforcementDispatcherTrait,
+};
+use cairo_cmtat::interfaces::erc20_enforcement::{
+    IERC3643ERC20EnforcementDispatcher, IERC3643ERC20EnforcementDispatcherTrait,
+    IERC7551ERC20EnforcementDispatcher, IERC7551ERC20EnforcementDispatcherTrait,
+    IERC7943FungibleEnforcementDispatcher, IERC7943FungibleEnforcementDispatcherTrait,
+};
+use cairo_cmtat::interfaces::extra_information::{ICMTATBaseDispatcher, ICMTATBaseDispatcherTrait};
+use cairo_cmtat::interfaces::mint::{
+    IERC3643BatchTransferSafeDispatcher, IERC3643BatchTransferSafeDispatcherTrait,
+    IERC3643MintDispatcher, IERC3643MintDispatcherTrait, IERC3643MintSafeDispatcher,
+    IERC3643MintSafeDispatcherTrait,
+};
+use cairo_cmtat::interfaces::pause::{IERC3643PauseDispatcher, IERC3643PauseDispatcherTrait};
+use cairo_cmtat::interfaces::validation::{
+    IERC3643ComplianceReadDispatcher, IERC3643ComplianceReadDispatcherTrait,
+    IERC7551ComplianceDispatcher, IERC7551ComplianceDispatcherTrait,
+    IERC7943FungibleSendReceiveCheckDispatcher, IERC7943FungibleSendReceiveCheckDispatcherTrait,
+};
+use cairo_cmtat::roles::{
+    ALLOWLIST_ROLE, BURNER_ROLE, ENFORCER_ROLE, ERC20ENFORCER_ROLE, MINTER_ROLE, PAUSER_ROLE,
+};
+use openzeppelin::access::accesscontrol::AccessControlComponent;
+use openzeppelin::interfaces::accesscontrol::{
+    IAccessControlDispatcher, IAccessControlDispatcherTrait,
+};
+use openzeppelin::interfaces::erc20::{
+    IERC20Dispatcher, IERC20DispatcherTrait, IERC20MetadataDispatcher,
+    IERC20MetadataDispatcherTrait, IERC20SafeDispatcher, IERC20SafeDispatcherTrait,
+};
+use openzeppelin::utils::serde::SerializedAppend;
+use openzeppelin_testing::{EventSpyExt, spy_events};
+use snforge_std::start_cheat_caller_address;
+use starknet::ContractAddress;
+use crate::utils::{
+    ADMIN, BURNER, ENFORCER, ERC20ENFORCER, HOLDER, MINTER, OTHER, PAUSER, RECIPIENT, SPENDER,
+    SUPPLY, assert_reverted_with, deploy_allowlist_preset,
+};
+
+/// Allowlist manager.
+const LISTER: ContractAddress = OTHER;
+
+/// HOLDER is listed; RECIPIENT and SPENDER are not.
+fn setup() -> ContractAddress {
+    let token = deploy_allowlist_preset();
+    start_cheat_caller_address(token, ADMIN);
+    let access = IAccessControlDispatcher { contract_address: token };
+    access.grant_role(ALLOWLIST_ROLE, LISTER);
+    access.grant_role(PAUSER_ROLE, PAUSER);
+    access.grant_role(ENFORCER_ROLE, ENFORCER);
+    access.grant_role(ERC20ENFORCER_ROLE, ERC20ENFORCER);
+    access.grant_role(MINTER_ROLE, MINTER);
+    access.grant_role(BURNER_ROLE, BURNER);
+    list(token, HOLDER, true);
+    start_cheat_caller_address(token, MINTER);
+    IERC3643MintDispatcher { contract_address: token }.mint(HOLDER, SUPPLY);
+    token
+}
+
+fn allowlist(token: ContractAddress) -> IAllowlistModuleDispatcher {
+    IAllowlistModuleDispatcher { contract_address: token }
+}
+
+fn list(token: ContractAddress, account: ContractAddress, status: bool) {
+    start_cheat_caller_address(token, LISTER);
+    allowlist(token).set_address_allowlist(account, status);
+}
+
+fn as_holder(token: ContractAddress) -> IERC20SafeDispatcher {
+    start_cheat_caller_address(token, HOLDER);
+    IERC20SafeDispatcher { contract_address: token }
+}
+
+fn cannot_send(account: ContractAddress) -> Span<felt252> {
+    array![errors::ERC7943_CANNOT_SEND, account.into()].span()
+}
+
+fn cannot_receive(account: ContractAddress) -> Span<felt252> {
+    array![errors::ERC7943_CANNOT_RECEIVE, account.into()].span()
+}
+
+//
+// Management
+//
+
+#[test]
+fn enabled_at_deployment() {
+    let token = setup();
+    assert!(allowlist(token).is_allowlist_enabled());
+    assert!(allowlist(token).is_allowlisted(HOLDER));
+    assert!(!allowlist(token).is_allowlisted(RECIPIENT));
+}
+
+#[test]
+fn set_address_allowlist_emits() {
+    let token = setup();
+    start_cheat_caller_address(token, LISTER);
+    let mut spy = spy_events();
+    allowlist(token).set_address_allowlist(RECIPIENT, true);
+    assert!(allowlist(token).is_allowlisted(RECIPIENT));
+    spy
+        .assert_only_event(
+            token,
+            AllowlistComponent::Event::AddressAddedToAllowlist(
+                AllowlistComponent::AddressAddedToAllowlist {
+                    account: RECIPIENT, status: true, enforcer: LISTER, data: array![].span(),
+                },
+            ),
+        );
+}
+
+#[test]
+fn set_address_allowlist_with_data_emits_data() {
+    let token = setup();
+    start_cheat_caller_address(token, LISTER);
+    let data = array!['kyc'].span();
+    let mut spy = spy_events();
+    allowlist(token).set_address_allowlist_with_data(HOLDER, false, data);
+    assert!(!allowlist(token).is_allowlisted(HOLDER));
+    spy
+        .assert_only_event(
+            token,
+            AllowlistComponent::Event::AddressAddedToAllowlist(
+                AllowlistComponent::AddressAddedToAllowlist {
+                    account: HOLDER, status: false, enforcer: LISTER, data,
+                },
+            ),
+        );
+}
+
+#[test]
+fn batch_set_address_allowlist_sets_each() {
+    let token = setup();
+    start_cheat_caller_address(token, LISTER);
+    let mut spy = spy_events();
+    allowlist(token)
+        .batch_set_address_allowlist(array![HOLDER, RECIPIENT].span(), array![false, true].span());
+    assert!(!allowlist(token).is_allowlisted(HOLDER));
+    assert!(allowlist(token).is_allowlisted(RECIPIENT));
+    spy
+        .assert_emitted_single(
+            token,
+            AllowlistComponent::Event::AddressAddedToAllowlist(
+                AllowlistComponent::AddressAddedToAllowlist {
+                    account: HOLDER, status: false, enforcer: LISTER, data: array![].span(),
+                },
+            ),
+        );
+    spy
+        .assert_only_event(
+            token,
+            AllowlistComponent::Event::AddressAddedToAllowlist(
+                AllowlistComponent::AddressAddedToAllowlist {
+                    account: RECIPIENT, status: true, enforcer: LISTER, data: array![].span(),
+                },
+            ),
+        );
+}
+
+#[test]
+#[feature("safe_dispatcher")]
+fn batch_set_address_allowlist_validates_input() {
+    let token = setup();
+    start_cheat_caller_address(token, LISTER);
+    let safe = IAllowlistModuleSafeDispatcher { contract_address: token };
+    assert_reverted_with(
+        safe.batch_set_address_allowlist(array![].span(), array![].span()),
+        array![errors::ENF_EMPTY_ACCOUNTS].span(),
+    );
+    assert_reverted_with(
+        safe.batch_set_address_allowlist(array![HOLDER].span(), array![true, false].span()),
+        array![errors::ENF_ACCOUNTS_VALUES_LEN_MISMATCH].span(),
+    );
+    assert_reverted_with(
+        safe.batch_set_address_allowlist(array![HOLDER, RECIPIENT].span(), array![true].span()),
+        array![errors::ENF_ACCOUNTS_VALUES_LEN_MISMATCH].span(),
+    );
+    assert_reverted_with(
+        safe.batch_set_address_allowlist(array![].span(), array![true].span()),
+        array![errors::ENF_EMPTY_ACCOUNTS].span(),
+    );
+}
+
+#[test]
+fn enable_allowlist_emits() {
+    let token = setup();
+    start_cheat_caller_address(token, LISTER);
+    let mut spy = spy_events();
+    allowlist(token).enable_allowlist(false);
+    assert!(!allowlist(token).is_allowlist_enabled());
+    spy
+        .assert_only_event(
+            token,
+            AllowlistComponent::Event::AllowlistEnableStatus(
+                AllowlistComponent::AllowlistEnableStatus { operator: LISTER, status: false },
+            ),
+        );
+}
+
+/// Re-enabling restores enforcement for addresses that are still unlisted.
+#[test]
+#[feature("safe_dispatcher")]
+fn re_enable_allowlist_restores_enforcement() {
+    let token = setup();
+    start_cheat_caller_address(token, LISTER);
+    allowlist(token).enable_allowlist(false);
+    assert!(as_holder(token).transfer(RECIPIENT, 1).unwrap());
+    start_cheat_caller_address(token, LISTER);
+    let mut spy = spy_events();
+    allowlist(token).enable_allowlist(true);
+    assert!(allowlist(token).is_allowlist_enabled());
+    spy
+        .assert_only_event(
+            token,
+            AllowlistComponent::Event::AllowlistEnableStatus(
+                AllowlistComponent::AllowlistEnableStatus { operator: LISTER, status: true },
+            ),
+        );
+    assert_reverted_with(as_holder(token).transfer(RECIPIENT, 1), cannot_receive(RECIPIENT));
+}
+
+#[test]
+#[feature("safe_dispatcher")]
+fn management_requires_allowlist_role() {
+    let token = setup();
+    start_cheat_caller_address(token, MINTER);
+    let safe = IAllowlistModuleSafeDispatcher { contract_address: token };
+    let missing_role = array![AccessControlComponent::Errors::MISSING_ROLE].span();
+    assert_reverted_with(safe.set_address_allowlist(RECIPIENT, true), missing_role);
+    assert_reverted_with(
+        safe.set_address_allowlist_with_data(RECIPIENT, true, array![].span()), missing_role,
+    );
+    assert_reverted_with(
+        safe.batch_set_address_allowlist(array![RECIPIENT].span(), array![true].span()),
+        missing_role,
+    );
+    assert_reverted_with(safe.enable_allowlist(false), missing_role);
+}
+
+//
+// Enforcement
+//
+
+#[test]
+#[feature("safe_dispatcher")]
+fn transfer_to_unlisted_reverts() {
+    let token = setup();
+    assert_reverted_with(as_holder(token).transfer(RECIPIENT, 1), cannot_receive(RECIPIENT));
+}
+
+#[test]
+#[feature("safe_dispatcher")]
+fn transfer_from_unlisted_sender_reverts() {
+    let token = setup();
+    list(token, RECIPIENT, true);
+    list(token, HOLDER, false);
+    assert_reverted_with(as_holder(token).transfer(RECIPIENT, 1), cannot_send(HOLDER));
+}
+
+#[test]
+#[feature("safe_dispatcher")]
+fn transfer_from_requires_listed_spender() {
+    let token = setup();
+    list(token, SPENDER, true);
+    list(token, RECIPIENT, true);
+    start_cheat_caller_address(token, HOLDER);
+    IERC20Dispatcher { contract_address: token }.approve(SPENDER, 10);
+    list(token, SPENDER, false);
+    start_cheat_caller_address(token, SPENDER);
+    assert_reverted_with(
+        IERC20SafeDispatcher { contract_address: token }.transfer_from(HOLDER, RECIPIENT, 1),
+        cannot_send(SPENDER),
+    );
+}
+
+#[test]
+#[feature("safe_dispatcher")]
+fn mint_to_unlisted_reverts() {
+    let token = setup();
+    start_cheat_caller_address(token, MINTER);
+    assert_reverted_with(
+        IERC3643MintSafeDispatcher { contract_address: token }.mint(RECIPIENT, 1),
+        cannot_receive(RECIPIENT),
+    );
+}
+
+#[test]
+#[feature("safe_dispatcher")]
+fn burn_from_unlisted_reverts() {
+    let token = setup();
+    list(token, HOLDER, false);
+    start_cheat_caller_address(token, BURNER);
+    assert_reverted_with(
+        IERC3643BurnSafeDispatcher { contract_address: token }.burn(HOLDER, 1), cannot_send(HOLDER),
+    );
+}
+
+/// The first unlisted recipient reverts the whole batch.
+#[test]
+#[feature("safe_dispatcher")]
+fn batch_mint_to_unlisted_reverts() {
+    let token = setup();
+    start_cheat_caller_address(token, MINTER);
+    assert_reverted_with(
+        IERC3643MintSafeDispatcher { contract_address: token }
+            .batch_mint(array![HOLDER, RECIPIENT].span(), array![1, 1].span()),
+        cannot_receive(RECIPIENT),
+    );
+    assert_eq!(IERC20Dispatcher { contract_address: token }.balance_of(HOLDER), SUPPLY);
+}
+
+/// Only recipients are checked on mint: the minter itself is not listed.
+#[test]
+fn unlisted_minter_can_batch_mint() {
+    let token = setup();
+    list(token, RECIPIENT, true);
+    start_cheat_caller_address(token, MINTER);
+    IERC3643MintDispatcher { contract_address: token }
+        .batch_mint(array![HOLDER, RECIPIENT].span(), array![1, 2].span());
+    assert_eq!(IERC20Dispatcher { contract_address: token }.balance_of(RECIPIENT), 2);
+}
+
+/// Only the burnt account is checked: the burner itself is not listed.
+#[test]
+fn unlisted_burner_can_batch_burn_listed_account() {
+    let token = setup();
+    start_cheat_caller_address(token, BURNER);
+    IERC3643BurnDispatcher { contract_address: token }
+        .batch_burn(array![HOLDER].span(), array![1].span());
+    assert_eq!(IERC20Dispatcher { contract_address: token }.total_supply(), SUPPLY - 1);
+}
+
+#[test]
+#[feature("safe_dispatcher")]
+fn batch_burn_from_unlisted_reverts() {
+    let token = setup();
+    list(token, HOLDER, false);
+    start_cheat_caller_address(token, BURNER);
+    assert_reverted_with(
+        IERC3643BurnSafeDispatcher { contract_address: token }
+            .batch_burn(array![HOLDER].span(), array![1].span()),
+        cannot_send(HOLDER),
+    );
+}
+
+#[test]
+#[feature("safe_dispatcher")]
+fn batch_transfer_to_unlisted_reverts() {
+    let token = setup();
+    start_cheat_caller_address(token, ADMIN);
+    IAccessControlDispatcher { contract_address: token }.grant_role(MINTER_ROLE, HOLDER);
+    start_cheat_caller_address(token, HOLDER);
+    assert_reverted_with(
+        IERC3643BatchTransferSafeDispatcher { contract_address: token }
+            .batch_transfer(array![RECIPIENT].span(), array![1].span()),
+        cannot_receive(RECIPIENT),
+    );
+}
+
+#[test]
+#[feature("safe_dispatcher")]
+fn transfer_from_to_unlisted_reverts() {
+    let token = setup();
+    list(token, SPENDER, true);
+    start_cheat_caller_address(token, HOLDER);
+    IERC20Dispatcher { contract_address: token }.approve(SPENDER, 1);
+    start_cheat_caller_address(token, SPENDER);
+    assert_reverted_with(
+        IERC20SafeDispatcher { contract_address: token }.transfer_from(HOLDER, RECIPIENT, 1),
+        cannot_receive(RECIPIENT),
+    );
+}
+
+/// A zero-value transfer still needs both parties listed, on both paths.
+#[test]
+#[feature("safe_dispatcher")]
+fn zero_value_transfer_requires_listing() {
+    let token = setup();
+    let read = IERC3643ComplianceReadDispatcher { contract_address: token };
+    assert!(!read.can_transfer(HOLDER, RECIPIENT, 0));
+    assert_reverted_with(as_holder(token).transfer(RECIPIENT, 0), cannot_receive(RECIPIENT));
+    list(token, RECIPIENT, true);
+    assert!(read.can_transfer(HOLDER, RECIPIENT, 0));
+    assert!(as_holder(token).transfer(RECIPIENT, 0).unwrap());
+}
+
+#[test]
+fn disabled_allowlist_allows_unlisted() {
+    let token = setup();
+    start_cheat_caller_address(token, LISTER);
+    allowlist(token).enable_allowlist(false);
+    start_cheat_caller_address(token, HOLDER);
+    IERC20Dispatcher { contract_address: token }.transfer(RECIPIENT, 1);
+    assert_eq!(IERC20Dispatcher { contract_address: token }.balance_of(RECIPIENT), 1);
+}
+
+/// Forced transfers bypass every check, the allowlist included.
+#[test]
+fn forced_transfer_ignores_allowlist() {
+    let token = setup();
+    start_cheat_caller_address(token, ADMIN);
+    IERC7943FungibleEnforcementDispatcher { contract_address: token }
+        .forced_transfer(HOLDER, RECIPIENT, 1);
+    assert_eq!(IERC20Dispatcher { contract_address: token }.balance_of(RECIPIENT), 1);
+}
+
+//
+// Check order
+//
+
+/// Allowlist runs before freeze: a frozen sender and an unlisted recipient report
+/// the recipient.
+#[test]
+#[feature("safe_dispatcher")]
+fn allowlist_is_checked_before_freeze() {
+    let token = setup();
+    start_cheat_caller_address(token, ENFORCER);
+    IERC3643EnforcementDispatcher { contract_address: token }.set_address_frozen(HOLDER, true);
+    assert_reverted_with(as_holder(token).transfer(RECIPIENT, 1), cannot_receive(RECIPIENT));
+}
+
+#[test]
+#[feature("safe_dispatcher")]
+fn allowlist_is_checked_before_pause() {
+    let token = setup();
+    start_cheat_caller_address(token, PAUSER);
+    IERC3643PauseDispatcher { contract_address: token }.pause();
+    assert_reverted_with(as_holder(token).transfer(RECIPIENT, 1), cannot_receive(RECIPIENT));
+}
+
+#[test]
+#[feature("safe_dispatcher")]
+fn active_balance_is_checked_before_allowlist() {
+    let token = setup();
+    start_cheat_caller_address(token, ERC20ENFORCER);
+    IERC3643ERC20EnforcementDispatcher { contract_address: token }
+        .freeze_partial_tokens(HOLDER, SUPPLY);
+    let mut expected = array![errors::ERC7943_INSUFFICIENT_UNFROZEN_BAL];
+    expected.append_serde(HOLDER);
+    expected.append_serde(1_u256);
+    expected.append_serde(0_u256);
+    assert_reverted_with(as_holder(token).transfer(RECIPIENT, 1), expected.span());
+}
+
+//
+// Approve and reads
+//
+
+#[test]
+#[feature("safe_dispatcher")]
+fn approve_requires_listed_owner_and_spender() {
+    let token = setup();
+    assert_reverted_with(as_holder(token).approve(SPENDER, 1), cannot_send(SPENDER));
+    list(token, SPENDER, true);
+    list(token, HOLDER, false);
+    assert_reverted_with(as_holder(token).approve(SPENDER, 1), cannot_send(HOLDER));
+    assert!(as_holder(token).approve(SPENDER, 0).unwrap());
+}
+
+/// NM-3: a holder can still revoke an allowance after the spender is removed
+/// from the allowlist.
+#[test]
+#[feature("safe_dispatcher")]
+fn approve_zero_after_spender_is_delisted() {
+    let token = setup();
+    list(token, SPENDER, true);
+    assert!(as_holder(token).approve(SPENDER, 100).unwrap());
+    list(token, SPENDER, false);
+    assert_reverted_with(as_holder(token).approve(SPENDER, 50), cannot_send(SPENDER));
+    assert!(as_holder(token).approve(SPENDER, 0).unwrap());
+    assert_eq!(IERC20Dispatcher { contract_address: token }.allowance(HOLDER, SPENDER), 0);
+}
+
+#[test]
+fn can_send_and_receive_require_listing() {
+    let token = setup();
+    let reads = IERC7943FungibleSendReceiveCheckDispatcher { contract_address: token };
+    assert!(reads.can_send(HOLDER));
+    assert!(!reads.can_receive(RECIPIENT));
+    start_cheat_caller_address(token, ENFORCER);
+    IERC3643EnforcementDispatcher { contract_address: token }.set_address_frozen(HOLDER, true);
+    assert!(!reads.can_send(HOLDER));
+    start_cheat_caller_address(token, LISTER);
+    allowlist(token).enable_allowlist(false);
+    assert!(reads.can_receive(RECIPIENT));
+}
+
+#[test]
+fn can_transfer_reflects_allowlist() {
+    let token = setup();
+    let read = IERC3643ComplianceReadDispatcher { contract_address: token };
+    let read_from = IERC7551ComplianceDispatcher { contract_address: token };
+    // unlisted -> unlisted and unlisted -> listed
+    assert!(!read.can_transfer(RECIPIENT, SPENDER, 1));
+    assert!(!read.can_transfer(RECIPIENT, HOLDER, 1));
+    // listed -> unlisted, then listed -> listed
+    assert!(!read.can_transfer(HOLDER, RECIPIENT, 1));
+    list(token, RECIPIENT, true);
+    assert!(read.can_transfer(HOLDER, RECIPIENT, 1));
+    assert!(!read_from.can_transfer_from(SPENDER, HOLDER, RECIPIENT, 1));
+    list(token, SPENDER, true);
+    assert!(read_from.can_transfer_from(SPENDER, HOLDER, RECIPIENT, 1));
+}
+
+//
+// Preset
+//
+
+#[test]
+fn preset_constructor_sets_attributes() {
+    let token = deploy_allowlist_preset();
+    let metadata = IERC20MetadataDispatcher { contract_address: token };
+    assert_eq!(metadata.name(), "Standard Token");
+    assert_eq!(metadata.decimals(), 0);
+    assert_eq!(ICMTATBaseDispatcher { contract_address: token }.token_id(), "CH0000000000");
+    assert!(allowlist(token).is_allowlist_enabled());
+    assert_eq!(IERC20Dispatcher { contract_address: token }.total_supply(), 0);
+}
+
+#[test]
+fn preset_has_erc7551_enforcement() {
+    let token = setup();
+    start_cheat_caller_address(token, ERC20ENFORCER);
+    IERC7551ERC20EnforcementDispatcher { contract_address: token }
+        .freeze_partial_tokens_with_data(HOLDER, 100, array!['order'].span());
+    assert_eq!(
+        IERC7551ERC20EnforcementDispatcher { contract_address: token }
+            .get_active_balance_of(HOLDER),
+        SUPPLY - 100,
+    );
+}
+
